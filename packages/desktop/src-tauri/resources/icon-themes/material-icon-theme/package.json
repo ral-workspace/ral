@@ -1,0 +1,16 @@
+{
+  "name": "material-icon-theme",
+  "displayName": "Material Icon Theme",
+  "version": "5.32.0",
+  "publisher": "PKief",
+  "license": "MIT",
+  "contributes": {
+    "iconThemes": [
+      {
+        "id": "material-icon-theme",
+        "label": "Material Icon Theme",
+        "path": "./dist/material-icons.json"
+      }
+    ]
+  }
+}

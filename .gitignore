@@ -1,0 +1,6 @@
+.reference/
+node_modules/
+target/
+.turbo/
+.claude/
+.serena/
