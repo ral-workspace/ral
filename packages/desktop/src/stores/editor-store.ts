@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import type { OpenTab } from "../types/editor";
-import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX } from "../types/editor";
+import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX } from "../types/editor";
 import { useDiffStore } from "./diff-store";
+import { useDatabaseStore } from "./database-store";
 import { invalidateBufferCache } from "../hooks/use-codemirror";
 
 interface EditorState {
@@ -16,6 +17,8 @@ interface EditorState {
   openSettings: () => void;
   openBrowser: (url: string) => void;
   openDiff: (path: string, oldText: string | null, newText: string) => void;
+  openPreview: (path: string) => void;
+  openDatabase: (path: string) => void;
   markDirty: (path: string) => void;
   markClean: (path: string) => void;
   bumpFileVersion: (path: string) => void;
@@ -71,6 +74,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     invalidateBufferCache(id);
     if (id.startsWith(DIFF_TAB_PREFIX)) {
       useDiffStore.getState().removeDiff(id);
+    }
+    if (id.startsWith(DATABASE_TAB_PREFIX)) {
+      useDatabaseStore.getState().removeDatabase(id);
     }
     set({ openTabs: newTabs, activeTabId: newActiveId, dirtyFiles: newDirty });
   },
@@ -128,6 +134,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     set({
       openTabs: [...openTabs, { id: tabId, name, pinned: true, type: "diff" }],
+      activeTabId: tabId,
+    });
+  },
+
+  openPreview: (path) => {
+    const tabId = PREVIEW_TAB_PREFIX + path;
+    const { openTabs } = get();
+    const existing = openTabs.find((t) => t.id === tabId);
+    if (existing) {
+      set({ activeTabId: tabId });
+      return;
+    }
+
+    const name = path.split("/").pop() ?? path;
+    set({
+      openTabs: [...openTabs, { id: tabId, name, pinned: true, type: "preview" }],
+      activeTabId: tabId,
+    });
+  },
+
+  openDatabase: (path) => {
+    const tabId = DATABASE_TAB_PREFIX + path;
+    const { openTabs } = get();
+    const existing = openTabs.find((t) => t.id === tabId);
+    if (existing) {
+      set({ activeTabId: tabId });
+      return;
+    }
+
+    const name = path.split("/").pop() ?? path;
+    set({
+      openTabs: [...openTabs, { id: tabId, name, pinned: true, type: "database" }],
       activeTabId: tabId,
     });
   },

@@ -11,10 +11,11 @@ import {
   IconRefresh,
   IconFoldDown,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FileTree, type CreatingItem } from "./file-tree";
 import { useWorkspaceStore, useEditorStore, useLayoutStore } from "../stores";
+import { isDocumentFile, isDbYamlFile } from "../lib/file-type";
 
 interface SidebarProps {
   className?: string;
@@ -31,6 +32,21 @@ export function Sidebar({ className }: SidebarProps) {
   const projectPath = useWorkspaceStore((s) => s.projectPath);
   const selectFolder = useWorkspaceStore((s) => s.selectFolder);
   const openFile = useEditorStore((s) => s.openFile);
+  const openPreview = useEditorStore((s) => s.openPreview);
+  const openDatabase = useEditorStore((s) => s.openDatabase);
+
+  const handleFileOpen = useCallback(
+    (path: string, pinned: boolean) => {
+      if (isDbYamlFile(path)) {
+        openDatabase(path);
+      } else if (isDocumentFile(path)) {
+        openPreview(path);
+      } else {
+        openFile(path, pinned);
+      }
+    },
+    [openFile, openPreview, openDatabase],
+  );
 
   const [activeView, setActiveView] = useState("explorer");
   const [explorerOpen, setExplorerOpen] = useState(true);
@@ -143,7 +159,7 @@ export function Sidebar({ className }: SidebarProps) {
             <div className="flex-1 overflow-auto">
               <FileTree
                 rootPath={projectPath}
-                onFileOpen={openFile}
+                onFileOpen={handleFileOpen}
                 creatingItem={creatingItem}
                 onCreatingDone={() => setCreatingItem(null)}
                 selectedPath={selectedPath}
