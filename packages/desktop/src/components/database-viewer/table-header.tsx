@@ -1,34 +1,124 @@
-import { IconTrash } from "@tabler/icons-react";
+import { useState, useRef, useEffect } from "react";
+import {
+  IconArrowUp,
+  IconArrowDown,
+  IconArrowsSort,
+} from "@tabler/icons-react";
+import type { SortDirection } from "@tanstack/react-table";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@helm/ui";
 import type { ColumnSchema } from "../../types/database";
 
-interface TableHeaderProps {
-  columns: ColumnSchema[];
-  onDeleteColumn: (columnId: string) => void;
+interface EditableHeaderCellProps {
+  column: ColumnSchema;
+  onRename: (newName: string) => void;
+  onDelete: () => void;
+  sortDirection: false | SortDirection;
+  onToggleSort: () => void;
 }
 
-export function TableHeader({ columns, onDeleteColumn }: TableHeaderProps) {
+export function EditableHeaderCell({
+  column,
+  onRename,
+  onDelete,
+  sortDirection,
+  onToggleSort,
+}: EditableHeaderCellProps) {
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(column.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== column.name) {
+      onRename(trimmed);
+    } else {
+      setEditValue(column.name);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") {
+            setEditValue(column.name);
+            setEditing(false);
+          }
+        }}
+        className="w-full rounded bg-background px-1 py-0.5 text-xs font-medium text-foreground outline-none ring-1 ring-ring"
+      />
+    );
+  }
+
   return (
-    <thead>
-      <tr>
-        {columns.map((col) => (
-          <th
-            key={col.id}
-            className="group border-b border-r bg-muted/30 px-2 py-1.5 text-left text-xs font-medium text-muted-foreground"
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          className="flex h-full w-full cursor-default items-center gap-1"
+          onDoubleClick={() => {
+            setEditValue(column.name);
+            setEditing(true);
+          }}
+        >
+          <span className="flex-1 truncate">{column.name}</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSort();
+            }}
+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted"
           >
-            <div className="flex items-center gap-1">
-              <span className="flex-1 truncate">{col.name}</span>
-              <button
-                onClick={() => onDeleteColumn(col.id)}
-                className="shrink-0 rounded p-0.5 opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                title="Delete column"
-              >
-                <IconTrash className="size-3" />
-              </button>
-            </div>
-          </th>
-        ))}
-        <th className="w-8 border-b bg-muted/30" />
-      </tr>
-    </thead>
+            {sortDirection === "asc" ? (
+              <IconArrowUp className="size-3" />
+            ) : sortDirection === "desc" ? (
+              <IconArrowDown className="size-3" />
+            ) : (
+              <IconArrowsSort className="size-3 opacity-0 group-hover:opacity-100" />
+            )}
+          </button>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={onToggleSort}>
+          <IconArrowsSort className="size-4" />
+          {sortDirection === "asc"
+            ? "Sort descending"
+            : sortDirection === "desc"
+              ? "Clear sort"
+              : "Sort ascending"}
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => {
+            setEditValue(column.name);
+            setEditing(true);
+          }}
+        >
+          Rename column
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onClick={onDelete}>
+          Delete column
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

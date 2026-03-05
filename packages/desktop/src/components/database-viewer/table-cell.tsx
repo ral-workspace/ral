@@ -1,75 +1,65 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ColumnSchema } from "../../types/database";
 
-interface TableCellProps {
+interface CellRendererProps {
   column: ColumnSchema;
   value: unknown;
   onChange: (value: unknown) => void;
 }
 
-export function TableCell({ column, value, onChange }: TableCellProps) {
+export function CellRenderer({ column, value, onChange }: CellRendererProps) {
   switch (column.type) {
     case "checkbox":
       return (
-        <td className="border-b border-r px-2 py-1">
-          <input
-            type="checkbox"
-            checked={!!value}
-            onChange={(e) => onChange(e.target.checked)}
-            className="size-3.5 accent-primary"
-          />
-        </td>
+        <input
+          type="checkbox"
+          checked={!!value}
+          onChange={(e) => onChange(e.target.checked)}
+          className="ml-2 size-3.5 accent-primary"
+        />
       );
 
     case "select":
       return (
-        <td className="border-b border-r px-2 py-1">
-          <select
-            value={String(value ?? "")}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full bg-transparent text-xs outline-none"
-          >
-            <option value="">—</option>
-            {column.options?.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </td>
+        <select
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-full w-full bg-transparent px-2 text-xs outline-none"
+        >
+          <option value="">—</option>
+          {column.options?.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
       );
 
     case "number":
       return (
-        <td className="border-b border-r px-2 py-1">
-          <EditableText
-            value={value != null ? String(value) : ""}
-            onChange={(v) => onChange(v ? Number(v) : null)}
-            inputType="number"
-          />
-        </td>
+        <EditableText
+          value={value != null ? String(value) : ""}
+          onChange={(v) => onChange(v ? Number(v) : null)}
+          inputType="number"
+        />
       );
 
     case "date":
       return (
-        <td className="border-b border-r px-2 py-1">
-          <input
-            type="date"
-            value={String(value ?? "")}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full bg-transparent text-xs outline-none"
-          />
-        </td>
+        <input
+          type="date"
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-full w-full bg-transparent px-2 text-xs outline-none"
+        />
       );
 
     default:
       return (
-        <td className="border-b border-r px-2 py-1">
-          <EditableText
-            value={String(value ?? "")}
-            onChange={onChange}
-          />
-        </td>
+        <EditableText
+          value={String(value ?? "")}
+          onChange={onChange}
+        />
       );
   }
 }
@@ -103,7 +93,7 @@ function EditableText({
   if (!editing) {
     return (
       <span
-        className="block min-h-[1.25rem] w-full cursor-text text-xs"
+        className="flex h-full w-full cursor-text items-center px-2 text-xs"
         onDoubleClick={() => setEditing(true)}
       >
         {value || "\u00A0"}
@@ -125,7 +115,7 @@ function EditableText({
           setEditing(false);
         }
       }}
-      className="w-full bg-transparent text-xs outline-none ring-1 ring-primary/50 rounded px-0.5"
+      className="h-full w-full bg-transparent px-2 text-xs outline-none ring-1 ring-inset ring-primary/50"
     />
   );
 }

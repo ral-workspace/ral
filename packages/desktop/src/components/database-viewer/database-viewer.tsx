@@ -21,6 +21,7 @@ export function DatabaseViewer({ tabId, filePath }: DatabaseViewerProps) {
   const updateCell = useDatabaseStore((s) => s.updateCell);
   const moveRow = useDatabaseStore((s) => s.moveRow);
   const addColumn = useDatabaseStore((s) => s.addColumn);
+  const renameColumn = useDatabaseStore((s) => s.renameColumn);
   const deleteColumn = useDatabaseStore((s) => s.deleteColumn);
   const setActiveView = useDatabaseStore((s) => s.setActiveView);
   const openFile = useEditorStore((s) => s.openFile);
@@ -82,6 +83,7 @@ export function DatabaseViewer({ tabId, filePath }: DatabaseViewerProps) {
             onUpdateCell={(rowId, colId, value) => updateCell(tabId, rowId, colId, value)}
             onAddRow={() => addRow(tabId)}
             onDeleteRow={(rowId) => deleteRow(tabId, rowId)}
+            onRenameColumn={(colId, newName) => renameColumn(tabId, colId, newName)}
             onDeleteColumn={(colId) => deleteColumn(tabId, colId)}
           />
         )}

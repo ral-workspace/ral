@@ -135,6 +135,11 @@
     @apply bg-background text-foreground;
   }
 
+  input,
+  textarea {
+    text-transform: none;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;

@@ -46,6 +46,7 @@ interface DatabaseState {
 
   // Schema operations
   addColumn: (tabId: string, column: ColumnSchema) => void;
+  renameColumn: (tabId: string, columnId: string, newName: string) => void;
   deleteColumn: (tabId: string, columnId: string) => void;
 
   // View operations
@@ -231,6 +232,22 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         doc: {
           ...inst.doc,
           schema: [...inst.doc.schema, column],
+        },
+      })),
+    });
+    scheduleSave(tabId);
+  },
+
+  renameColumn: (tabId, columnId, newName) => {
+    set({
+      instances: updateInstance(get().instances, tabId, (inst) => ({
+        ...inst,
+        dirty: true,
+        doc: {
+          ...inst.doc,
+          schema: inst.doc.schema.map((c) =>
+            c.id === columnId ? { ...c, name: newName } : c,
+          ),
         },
       })),
     });
