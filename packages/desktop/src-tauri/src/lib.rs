@@ -1,4 +1,5 @@
 mod acp;
+mod document;
 mod fs;
 mod icon_themes;
 mod search;
@@ -16,6 +17,7 @@ pub fn run() {
         .manage(Mutex::new(terminal::TerminalManager::new()))
         .manage(Mutex::new(watcher::FileWatcherState { debouncer: None }))
         .manage(Mutex::new(acp::ACPManager::new()))
+        .manage(Mutex::new(document::ConversionCache::new()))
         .invoke_handler(tauri::generate_handler![
             fs::read_dir,
             fs::read_file,
@@ -23,6 +25,8 @@ pub fn run() {
             fs::create_file,
             fs::append_file,
             fs::create_dir,
+            fs::rename_path,
+            fs::run_command,
             search::search_text,
             watcher::start_file_watcher,
             watcher::stop_file_watcher,
@@ -39,6 +43,7 @@ pub fn run() {
             acp::acp_respond_permission,
             acp::acp_set_config_option,
             acp::acp_stop_agent,
+            document::convert_to_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
