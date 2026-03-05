@@ -79,3 +79,24 @@ pub(crate) fn append_file(path: String, content: String) -> Result<(), String> {
 pub(crate) fn create_dir(path: String) -> Result<(), String> {
     fs::create_dir_all(&path).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub(crate) fn rename_path(from: String, to: String) -> Result<(), String> {
+    fs::rename(&from, &to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub(crate) async fn run_command(command: String, args: Vec<String>) -> Result<String, String> {
+    let output = tokio::process::Command::new(&command)
+        .args(&args)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run {}: {}", command, e))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Command failed: {}", stderr))
+    }
+}

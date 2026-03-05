@@ -27,6 +27,46 @@ interface FileTreeProps {
   refreshCounter: number;
 }
 
+function basename(path: string): string {
+  return path.split("/").pop() || path;
+}
+
+function dirname(path: string): string {
+  const idx = path.lastIndexOf("/");
+  return idx === -1 ? "" : path.slice(0, idx);
+}
+
+function isDescendantOrSelf(child: string, parent: string): boolean {
+  return child === parent || child.startsWith(parent + "/");
+}
+
+/**
+ * Walk up from `el` to find the closest tree-row with data-tree-path.
+ * Returns { path, isDir } or null.
+ */
+function findTreeRow(el: HTMLElement | null): { path: string; isDir: boolean } | null {
+  let cur = el;
+  while (cur) {
+    if (cur.dataset?.treePath) {
+      return { path: cur.dataset.treePath, isDir: cur.dataset.treeDir === "true" };
+    }
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Resolve the drop target folder from a hovered element.
+ * - If hovering a folder row → that folder
+ * - If hovering a file row → its parent folder
+ */
+function resolveDropFolder(el: HTMLElement | null, rootPath: string): string | null {
+  const row = findTreeRow(el);
+  if (!row) return rootPath; // hovering empty space → root
+  if (row.isDir) return row.path;
+  return dirname(row.path) || rootPath;
+}
+
 export function FileTree({
   rootPath,
   onFileOpen,
@@ -38,6 +78,12 @@ export function FileTree({
 }: FileTreeProps) {
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dragSource, setDragSource] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const dropTargetRef = useRef<string | null>(null);
+  const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoExpandPathRef = useRef<string | null>(null);
+  const [autoExpandTrigger, setAutoExpandTrigger] = useState(0);
 
   const reload = useCallback(() => {
     invoke<DirEntry[]>("read_dir", { path: rootPath })
@@ -49,37 +95,108 @@ export function FileTree({
     let cancelled = false;
     setLoading(true);
     invoke<DirEntry[]>("read_dir", { path: rootPath })
-      .then((result) => {
-        if (!cancelled) setEntries(result);
-      })
-      .catch(() => {
-        if (!cancelled) setEntries([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((result) => { if (!cancelled) setEntries(result); })
+      .catch(() => { if (!cancelled) setEntries([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [rootPath, refreshCounter]);
+
+  const clearAutoExpand = useCallback(() => {
+    if (autoExpandTimerRef.current) {
+      clearTimeout(autoExpandTimerRef.current);
+      autoExpandTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearAutoExpand(), [clearAutoExpand]);
+
+  // All DnD is handled at the container level (event delegation)
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    const row = findTreeRow(e.target as HTMLElement);
+    if (!row) return;
+    e.dataTransfer.setData("text/plain", row.path);
+    e.dataTransfer.effectAllowed = "move";
+    setDragSource(row.path);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const el = e.target as HTMLElement;
+    const row = findTreeRow(el);
+    const folder = resolveDropFolder(el, rootPath);
+    if (folder !== dropTargetRef.current) {
+      dropTargetRef.current = folder;
+      setDropTarget(folder);
+      // Auto-expand timer
+      clearAutoExpand();
+      if (folder && folder !== rootPath) {
+        autoExpandTimerRef.current = setTimeout(() => {
+          autoExpandPathRef.current = folder;
+          setAutoExpandTrigger((n) => n + 1);
+        }, 500);
+      }
+    }
+  }, [rootPath, clearAutoExpand]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const related = e.relatedTarget as HTMLElement | null;
+    const leaving = !e.currentTarget.contains(related);
+    if (leaving) {
+      dropTargetRef.current = null;
+      setDropTarget(null);
+      clearAutoExpand();
+    }
+  }, [clearAutoExpand]);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    const sourcePath = e.dataTransfer.getData("text/plain");
+    const targetFolder = resolveDropFolder(e.target as HTMLElement, rootPath);
+
+    dropTargetRef.current = null;
+    setDropTarget(null);
+    setDragSource(null);
+    clearAutoExpand();
+
+    if (!sourcePath || !targetFolder) return;
+    if (isDescendantOrSelf(targetFolder, sourcePath)) return;
+    if (dirname(sourcePath) === targetFolder) return;
+
+    const destination = `${targetFolder}/${basename(sourcePath)}`;
+    try {
+      await invoke("rename_path", { from: sourcePath, to: destination });
+      reload();
+    } catch (err) {
+      console.error("Failed to move file:", err);
+    }
+  }, [rootPath, clearAutoExpand, reload]);
+
+  const handleDragEnd = useCallback(() => {
+    dropTargetRef.current = null;
+    setDragSource(null);
+    setDropTarget(null);
+    clearAutoExpand();
+  }, [clearAutoExpand]);
 
   if (loading) {
     return (
-      <div className="px-4 py-2 text-[11px] text-muted-foreground">
-        Loading...
-      </div>
+      <div className="px-4 py-2 text-[11px] text-muted-foreground">Loading...</div>
     );
   }
 
   const showInlineInput = creatingItem?.parentPath === rootPath;
-
-  const handleCreated = () => {
-    reload();
-    onCreatingDone?.();
-  };
+  const handleCreated = () => { reload(); onCreatingDone?.(); };
 
   return (
-    <div className="overflow-auto">
+    <div
+      className="overflow-auto"
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onDragEnd={handleDragEnd}
+    >
       {showInlineInput && (
         <InlineInput
           parentPath={rootPath}
@@ -99,6 +216,10 @@ export function FileTree({
           onCreatingDone={handleCreated}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          dropTarget={dropTarget}
+          dragSource={dragSource}
+          autoExpandPathRef={autoExpandPathRef}
+          autoExpandTrigger={autoExpandTrigger}
         />
       ))}
     </div>
@@ -122,52 +243,31 @@ function InlineInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   const commit = async () => {
     if (committedRef.current) return;
     committedRef.current = true;
-
     const name = value.trim();
-    if (!name || name.includes("/") || name.includes("\\")) {
-      onDone?.();
-      return;
-    }
-
+    if (!name || name.includes("/") || name.includes("\\")) { onDone?.(); return; }
     const fullPath = `${parentPath}/${name}`;
     try {
-      if (type === "folder") {
-        await invoke("create_dir", { path: fullPath });
-      } else {
-        await invoke("create_file", { path: fullPath });
-      }
+      if (type === "folder") { await invoke("create_dir", { path: fullPath }); }
+      else { await invoke("create_file", { path: fullPath }); }
       onDone?.();
-      if (type === "file") {
-        onFileOpen?.(fullPath, true);
-      }
-    } catch (err) {
-      console.error("Failed to create:", err);
-      onDone?.();
-    }
+      if (type === "file") { onFileOpen?.(fullPath, true); }
+    } catch (err) { console.error("Failed to create:", err); onDone?.(); }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      commit();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      committedRef.current = true;
-      onDone?.();
-    }
+    if (e.key === "Enter") { e.preventDefault(); commit(); }
+    else if (e.key === "Escape") { e.preventDefault(); committedRef.current = true; onDone?.(); }
   };
 
   return (
     <div
       className="flex h-[22px] w-full min-w-0 items-center gap-1 pr-2"
-      style={{ paddingLeft: depth * 16 + 20 }}
+      style={{ paddingLeft: depth * 8 + 20 }}
     >
       {type === "folder" ? (
         <>
@@ -186,6 +286,9 @@ function InlineInput({
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={commit}
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
         className="h-[18px] min-w-0 flex-1 bg-transparent text-[13px] text-sidebar-foreground outline-none ring-1 ring-blue-500 rounded-sm px-1"
       />
     </div>
@@ -200,6 +303,10 @@ function TreeItem({
   onCreatingDone,
   selectedPath,
   onSelect,
+  dropTarget,
+  dragSource,
+  autoExpandPathRef,
+  autoExpandTrigger,
 }: {
   entry: DirEntry;
   depth: number;
@@ -208,12 +315,18 @@ function TreeItem({
   onCreatingDone?: () => void;
   selectedPath: string | null;
   onSelect?: (path: string, isDirectory: boolean) => void;
+  dropTarget: string | null;
+  dragSource: string | null;
+  autoExpandPathRef: React.MutableRefObject<string | null>;
+  autoExpandTrigger: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   const showInlineInput = creatingItem?.parentPath === entry.path && entry.is_directory;
+  const isDragOver = dropTarget === entry.path && entry.is_directory;
+  const isDragging = dragSource === entry.path;
 
   const reloadChildren = useCallback(() => {
     invoke<DirEntry[]>("read_dir", { path: entry.path })
@@ -221,19 +334,33 @@ function TreeItem({
       .catch(() => setChildren([]));
   }, [entry.path]);
 
+  const loadAndExpand = useCallback(() => {
+    if (children === null) {
+      setLoading(true);
+      invoke<DirEntry[]>("read_dir", { path: entry.path })
+        .then(setChildren)
+        .catch(() => setChildren([]))
+        .finally(() => setLoading(false));
+    }
+    setExpanded(true);
+  }, [children, entry.path]);
+
   // Auto-expand folder when creating inside it
   useEffect(() => {
-    if (showInlineInput && !expanded) {
-      if (children === null) {
-        setLoading(true);
-        invoke<DirEntry[]>("read_dir", { path: entry.path })
-          .then(setChildren)
-          .catch(() => setChildren([]))
-          .finally(() => setLoading(false));
-      }
-      setExpanded(true);
-    }
+    if (showInlineInput && !expanded) loadAndExpand();
   }, [showInlineInput]);
+
+  // Auto-expand on drag hover (triggered from parent via ref + counter)
+  useEffect(() => {
+    if (
+      autoExpandPathRef.current === entry.path &&
+      entry.is_directory &&
+      !expanded
+    ) {
+      loadAndExpand();
+      autoExpandPathRef.current = null;
+    }
+  }, [autoExpandTrigger]);
 
   const handleClick = () => {
     onSelect?.(entry.path, entry.is_directory);
@@ -252,23 +379,27 @@ function TreeItem({
   };
 
   const handleDoubleClick = () => {
-    if (!entry.is_directory) {
-      onFileOpen?.(entry.path, true);
-    }
+    if (!entry.is_directory) onFileOpen?.(entry.path, true);
   };
 
-  const handleCreated = () => {
-    reloadChildren();
-    onCreatingDone?.();
-  };
+  const handleCreated = () => { reloadChildren(); onCreatingDone?.(); };
 
   return (
     <>
-      <button
+      <div
+        draggable
+        data-tree-path={entry.path}
+        data-tree-dir={entry.is_directory ? "true" : "false"}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-        className={`flex h-[22px] w-full items-center gap-1 pr-2 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent ${selectedPath === entry.path ? "bg-sidebar-accent" : ""}`}
-        style={{ paddingLeft: depth * 16 + 20 }}
+        role="treeitem"
+        className={[
+          "flex h-[22px] w-full cursor-default items-center gap-1 pr-2 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent",
+          selectedPath === entry.path ? "bg-sidebar-accent" : "",
+          isDragOver ? "bg-blue-500/20 outline outline-1 outline-blue-500/50" : "",
+          isDragging ? "opacity-50" : "",
+        ].join(" ")}
+        style={{ paddingLeft: depth * 8 + 20 }}
       >
         {entry.is_directory ? (
           <>
@@ -290,7 +421,7 @@ function TreeItem({
           </>
         )}
         <span className="truncate">{entry.name}</span>
-      </button>
+      </div>
 
       {entry.is_directory && expanded && (
         <>
@@ -306,7 +437,7 @@ function TreeItem({
           {loading ? (
             <div
               className="flex h-[22px] items-center text-[11px] text-muted-foreground"
-              style={{ paddingLeft: (depth + 1) * 16 + 20 }}
+              style={{ paddingLeft: (depth + 1) * 8 + 20 }}
             >
               Loading...
             </div>
@@ -321,6 +452,10 @@ function TreeItem({
                 onCreatingDone={handleCreated}
                 selectedPath={selectedPath}
                 onSelect={onSelect}
+                dropTarget={dropTarget}
+                dragSource={dragSource}
+                autoExpandPathRef={autoExpandPathRef}
+                autoExpandTrigger={autoExpandTrigger}
               />
             ))
           )}
