@@ -1,0 +1,17 @@
+{
+  "name": "@nvq/claude-plugin-presentation",
+  "version": "0.1.0",
+  "description": "Claude Code plugin for creating PowerPoint (.pptx) presentations",
+  "license": "MIT",
+  "files": [
+    ".claude-plugin",
+    "skills"
+  ],
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "presentation",
+    "pptx",
+    "powerpoint"
+  ]
+}

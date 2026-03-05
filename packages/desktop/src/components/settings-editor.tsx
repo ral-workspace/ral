@@ -25,6 +25,7 @@ import {
 } from "../settings";
 import { useSettingsStore } from "../stores";
 import type { Settings, SettingSection, SettingMeta } from "../settings";
+import { PluginSettings } from "./plugin-settings";
 
 type SettingEntry = [keyof Settings, SettingMeta];
 
@@ -112,7 +113,9 @@ export function SettingsEditor() {
 
         {/* Settings list */}
         <div className="flex-1 overflow-y-auto px-6 pb-8">
-          {filteredEntries.length === 0 ? (
+          {!search && activeSection === "Plugins" ? (
+            <PluginSettings />
+          ) : filteredEntries.length === 0 ? (
             <div className="flex h-40 items-center justify-center">
               <span className="text-xs text-muted-foreground">No settings found</span>
             </div>

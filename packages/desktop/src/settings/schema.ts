@@ -54,7 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
 // --- Settings metadata for UI rendering ---
 
 /** Section = sidebar nav item (Editor, Terminal, UI) */
-export type SettingSection = "Editor" | "Terminal" | "UI";
+export type SettingSection = "Editor" | "Terminal" | "UI" | "Plugins";
 
 /** Category = card group within a section (e.g. "Font", "Display") */
 export interface SettingMeta {
@@ -216,7 +216,7 @@ export const SETTINGS_METADATA: Record<keyof Settings, SettingMeta> = {
   },
 };
 
-export const SETTING_SECTIONS: SettingSection[] = ["Editor", "Terminal", "UI"];
+export const SETTING_SECTIONS: SettingSection[] = ["Editor", "Terminal", "UI", "Plugins"];
 
 /** Resolve lineHeight to px. 0 = auto (fontSize × 1.5). */
 export function resolveEditorLineHeight(settings: Settings): number {

@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.12.1",
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "pnpm --filter @helm/desktop tauri dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",

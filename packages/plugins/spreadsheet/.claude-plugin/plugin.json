@@ -1,0 +1,5 @@
+{
+  "name": "spreadsheet",
+  "description": "Create Excel (.xlsx) spreadsheets using openpyxl",
+  "version": "0.1.0"
+}
