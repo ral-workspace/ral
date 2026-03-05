@@ -4,22 +4,24 @@ import { cn } from "../../lib/utils";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const RENDER_SIZE = 48;
-const CELL = 8;
-const GAP = 1;
+const CELL = 10;
+const GAP = 0;
 const COLS = Math.ceil(RENDER_SIZE / CELL);
 const ROWS = Math.ceil(RENDER_SIZE / CELL);
 const CX = COLS / 2;
 const CY = ROWS / 2;
 
 const PAL_SOLAR: [number, number, number][] = [
-  [0, 5, 20],
-  [0, 40, 120],
   [0, 100, 255],
-  [60, 180, 255],
-  [180, 220, 255],
+  [0, 200, 160],
+  [255, 180, 0],
+  [255, 60, 100],
+  [180, 0, 200],
+  [80, 120, 255],
+  [0, 200, 200],
 ];
 
-const CFG = { warp: 2.5, scale: 2.6, oct: 5 };
+const CFG = { warp: 2.5, scale: 5.0, oct: 5 };
 const TOTAL_FRAMES = 120;
 const LOOP_DURATION = 4; // seconds per loop
 
@@ -72,8 +74,12 @@ for (let py = 0; py < RENDER_SIZE; py++)
     circleMask[py * RENDER_SIZE + px] = dx * dx + dy * dy <= _r2 ? 1 : 0;
   }
 
+// ── Background colors per theme ──────────────────────────────────────────────
+const BG_DARK:  [number, number, number] = [10, 10, 16];
+const BG_LIGHT: [number, number, number] = [235, 235, 240];
+
 // ── Pre-compute frames (module-level, runs once) ─────────────────────────────
-function renderFrame(frameIdx: number): Uint8ClampedArray {
+function renderFrame(frameIdx: number, bg: [number, number, number]): Uint8ClampedArray {
   // Use sin/cos to loop time smoothly
   const phase = (frameIdx / TOTAL_FRAMES) * Math.PI * 2;
   const tx = Math.cos(phase) * 0.5;
@@ -83,7 +89,7 @@ function renderFrame(frameIdx: number): Uint8ClampedArray {
 
   // background
   for (let i = 0; i < RENDER_SIZE * RENDER_SIZE; i++) {
-    d[i * 4] = 10; d[i * 4 + 1] = 10; d[i * 4 + 2] = 16; d[i * 4 + 3] = 255;
+    d[i * 4] = bg[0]; d[i * 4 + 1] = bg[1]; d[i * 4 + 2] = bg[2]; d[i * 4 + 3] = 255;
   }
 
   for (let cy = 0; cy < ROWS; cy++) {
@@ -94,13 +100,15 @@ function renderFrame(frameIdx: number): Uint8ClampedArray {
       const wy1 = fbm(sx + 5.2 + ty * 0.9, sy + 1.7 + tx * 1.1, CFG.oct);
       const wx2 = fbm(sx + CFG.warp * wx1 + 1.7 + tx * 0.7, sy + CFG.warp * wy1 + 9.2 + ty * 0.7, CFG.oct);
       const wy2 = fbm(sx + CFG.warp * wx1 + 8.3 + ty * 0.8, sy + CFG.warp * wy1 + 2.8 + tx * 0.8, CFG.oct);
-      const v = (fbm(sx + CFG.warp * wx2, sy + CFG.warp * wy2, CFG.oct) + 1) * 0.5;
+      const vRaw = (fbm(sx + CFG.warp * wx2, sy + CFG.warp * wy2, CFG.oct) + 1) * 0.5;
+      // Stretch contrast so palette endpoints are actually reached
+      const v = Math.max(0, Math.min(1, (vRaw - 0.3) / 0.4));
 
       const [r, g, b] = palSample(PAL_SOLAR, v);
       const ddx = cx - CX, ddy = cy - CY;
       const edgeDist = Math.sqrt(ddx * ddx + ddy * ddy) / (COLS / 2);
       const vig = 1 - Math.pow(Math.max(0, edgeDist), 2.5) * 0.55;
-      const a = Math.min(1, (0.4 + v * 0.6) * vig);
+      const a = Math.min(1, (0.7 + v * 0.3) * vig);
       if (a < 0.02) continue;
 
       // Fill cell with 1px gap
@@ -125,9 +133,11 @@ function renderFrame(frameIdx: number): Uint8ClampedArray {
   return d;
 }
 
-const frameCache: Uint8ClampedArray[] = [];
+const frameCacheDark: Uint8ClampedArray[] = [];
+const frameCacheLight: Uint8ClampedArray[] = [];
 for (let i = 0; i < TOTAL_FRAMES; i++) {
-  frameCache.push(renderFrame(i));
+  frameCacheDark.push(renderFrame(i, BG_DARK));
+  frameCacheLight.push(renderFrame(i, BG_LIGHT));
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -151,9 +161,11 @@ function SolarLoader({
     const msPerLoop = LOOP_DURATION * 1000;
 
     function draw() {
+      const isDark = document.documentElement.classList.contains("dark");
+      const cache = isDark ? frameCacheDark : frameCacheLight;
       const elapsed = performance.now() - start;
       const frameIdx = Math.floor((elapsed % msPerLoop) / msPerLoop * TOTAL_FRAMES);
-      imgData.data.set(frameCache[frameIdx]);
+      imgData.data.set(cache[frameIdx]);
       ctx.putImageData(imgData, 0, 0);
       rafRef.current = requestAnimationFrame(draw);
     }

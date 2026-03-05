@@ -44,6 +44,7 @@ impl ACPManager {
         agent_path: String,
         agent_args: Vec<String>,
         cwd: String,
+        load_session_id: Option<String>,
     ) -> Result<(), String> {
         if self.cmd_tx.is_some() {
             return Err("Agent already running".to_string());
@@ -62,7 +63,7 @@ impl ACPManager {
 
             let local_set = tokio::task::LocalSet::new();
             local_set.block_on(&rt, async move {
-                if let Err(e) = run_acp_session(app.clone(), agent_path, agent_args, cwd, cmd_rx).await {
+                if let Err(e) = run_acp_session(app.clone(), agent_path, agent_args, cwd, cmd_rx, load_session_id).await {
                     eprintln!("[acp] session error: {}", e);
                     let _ = app.emit("acp-error", e);
                 }
@@ -85,6 +86,7 @@ async fn run_acp_session(
     agent_args: Vec<String>,
     cwd: String,
     mut cmd_rx: mpsc::Receiver<ACPCommand>,
+    load_session_id: Option<String>,
 ) -> Result<(), String> {
     // Resolve shell PATH (macOS apps don't inherit shell environment)
     let shell_path = resolve_shell_path();
@@ -156,42 +158,57 @@ async fn run_acp_session(
         eprintln!("[acp] terminal-auth available: {} {:?}", ta.command, ta.args);
     }
 
-    // Try to create a session; if auth is required, run terminal-auth login
+    // Create or load a session
     let cwd_path = std::path::PathBuf::from(&cwd);
-    let session_response = match conn.new_session(acp::NewSessionRequest::new(cwd_path.clone())).await {
-        Ok(resp) => resp,
-        Err(e) => {
-            let err_str = format!("{}", e);
-            // Check if this is an auth error (AUTH_REQUIRED = -32000)
-            if err_str.contains("uthenticat") || err_str.contains("-32000") || err_str.contains("auth") {
-                eprintln!("[acp] auth required, attempting terminal-auth login...");
+    let (session_id, config_options) = if let Some(ref sid) = load_session_id {
+        // Load an existing session
+        eprintln!("[acp] loading session: {}", sid);
+        let load_req = acp::LoadSessionRequest::new(sid.clone(), cwd_path);
+        let load_response = conn.load_session(load_req)
+            .await
+            .map_err(|e| format!("ACP load_session failed: {}", e))?;
+        eprintln!("[acp] session loaded: {}", sid);
+        (acp::SessionId::from(sid.clone()), load_response.config_options)
+    } else {
+        // Try to create a new session; if auth is required, run terminal-auth login
+        let session_response = match conn.new_session(acp::NewSessionRequest::new(cwd_path.clone())).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                let err_str = format!("{}", e);
+                // Check if this is an auth error (AUTH_REQUIRED = -32000)
+                if err_str.contains("uthenticat") || err_str.contains("-32000") || err_str.contains("auth") {
+                    eprintln!("[acp] auth required, attempting terminal-auth login...");
 
-                if let Some(ref ta) = terminal_auth_cmd {
-                    let _ = app.emit("acp-auth-started", ());
-                    run_terminal_auth(ta, shell_path.as_deref()).await?;
-                    let _ = app.emit("acp-auth-completed", ());
+                    if let Some(ref ta) = terminal_auth_cmd {
+                        let _ = app.emit("acp-auth-started", ());
+                        run_terminal_auth(ta, shell_path.as_deref()).await?;
+                        let _ = app.emit("acp-auth-completed", ());
 
-                    // Retry new_session after authentication
-                    conn.new_session(acp::NewSessionRequest::new(cwd_path))
-                        .await
-                        .map_err(|e| format!("ACP new_session failed after auth: {}", e))?
+                        // Retry new_session after authentication
+                        conn.new_session(acp::NewSessionRequest::new(cwd_path))
+                            .await
+                            .map_err(|e| format!("ACP new_session failed after auth: {}", e))?
+                    } else {
+                        return Err(format!(
+                            "Authentication required but no terminal-auth method available. \
+                             Please run `claude /login` in your terminal first. Original error: {}", e
+                        ));
+                    }
                 } else {
-                    return Err(format!(
-                        "Authentication required but no terminal-auth method available. \
-                         Please run `claude /login` in your terminal first. Original error: {}", e
-                    ));
+                    return Err(format!("ACP new_session failed: {}", e));
                 }
-            } else {
-                return Err(format!("ACP new_session failed: {}", e));
             }
-        }
+        };
+        let sid = session_response.session_id.clone();
+        eprintln!("[acp] session created: {}", sid);
+        (sid, session_response.config_options)
     };
 
-    let session_id = session_response.session_id.clone();
-    eprintln!("[acp] session created: {}", session_id);
+    // Emit the agent's session ID to the frontend
+    let _ = app.emit("acp-session-id", session_id.to_string());
 
     // Emit session config options if available
-    if let Some(ref config_options) = session_response.config_options {
+    if let Some(ref config_options) = config_options {
         let _ = app.emit("acp-config-options", serde_json::to_value(config_options).unwrap_or_default());
     }
 
@@ -241,7 +258,8 @@ async fn run_acp_session(
                             continue;
                         }
                         prompt_in_flight = true;
-                        eprintln!("[acp] sending prompt: {}", &text[..text.len().min(100)]);
+                        let preview: String = text.chars().take(100).collect();
+                        eprintln!("[acp] sending prompt: {}", preview);
                         let prompt = vec![
                             acp::ContentBlock::Text(acp::TextContent::new(text))
                         ];

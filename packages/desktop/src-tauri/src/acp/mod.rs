@@ -18,7 +18,20 @@ pub(crate) async fn acp_start_agent(
     cwd: String,
 ) -> Result<(), String> {
     let mut manager = state.lock().map_err(|e| e.to_string())?;
-    manager.start_agent(app, agent_path, agent_args, cwd)
+    manager.start_agent(app, agent_path, agent_args, cwd, None)
+}
+
+#[tauri::command]
+pub(crate) async fn acp_load_session(
+    app: AppHandle,
+    state: State<'_, Mutex<ACPManager>>,
+    agent_path: String,
+    agent_args: Vec<String>,
+    cwd: String,
+    session_id: String,
+) -> Result<(), String> {
+    let mut manager = state.lock().map_err(|e| e.to_string())?;
+    manager.start_agent(app, agent_path, agent_args, cwd, Some(session_id))
 }
 
 #[tauri::command]

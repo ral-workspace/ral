@@ -97,7 +97,10 @@ export function SettingsEditor() {
             {SETTING_SECTIONS.map((sec) => (
               <button
                 key={sec}
-                onClick={() => { setActiveSection(sec); setSearch(""); }}
+                onClick={() => {
+                  setActiveSection(sec);
+                  setSearch("");
+                }}
                 className={cn(
                   "rounded-md px-3 py-1.5 text-left text-xs transition-colors",
                   !search && activeSection === sec
@@ -117,13 +120,17 @@ export function SettingsEditor() {
             <PluginSettings />
           ) : filteredEntries.length === 0 ? (
             <div className="flex h-40 items-center justify-center">
-              <span className="text-xs text-muted-foreground">No settings found</span>
+              <span className="text-xs text-muted-foreground">
+                No settings found
+              </span>
             </div>
           ) : (
             <div className="space-y-6">
               {categoryGroups.map(({ category, entries }) => (
                 <div key={category} className="space-y-2">
-                  <h2 className="text-sm font-semibold text-foreground">{category}</h2>
+                  <h2 className="text-sm font-semibold text-foreground">
+                    {category}
+                  </h2>
                   <ItemGroup className="rounded-lg bg-card">
                     {entries.map(([key, meta], i) => (
                       <div key={key}>
@@ -134,7 +141,8 @@ export function SettingsEditor() {
                           defaultValue={DEFAULT_SETTINGS[key]}
                           onChange={(val) => {
                             updateSettings({ [key]: val } as Partial<Settings>);
-                            if (key === "ui.colorTheme") setTheme(val as string);
+                            if (key === "ui.colorTheme")
+                              setTheme(val as string);
                           }}
                         />
                       </div>

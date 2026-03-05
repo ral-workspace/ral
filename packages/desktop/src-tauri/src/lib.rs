@@ -38,6 +38,7 @@ pub fn run() {
             icon_themes::list_icon_themes,
             icon_themes::load_icon_theme,
             acp::acp_start_agent,
+            acp::acp_load_session,
             acp::acp_send_prompt,
             acp::acp_cancel,
             acp::acp_respond_permission,

@@ -15,6 +15,7 @@ export interface SessionSummary {
   sessionId: string;
   createdAt: string;
   preview: string;
+  agentSessionId?: string;
 }
 
 function encodeProjectPath(path: string): string {
@@ -75,21 +76,25 @@ export async function listSessions(
         const firstLine = content.split("\n")[0];
         if (!firstLine) continue;
         const meta = JSON.parse(firstLine) as SessionRecord;
-        // Find first user message for preview
+        // Scan all lines for preview and agentSessionId
         const lines = content.trim().split("\n");
         let preview = "";
+        let agentSessionId: string | undefined;
         for (const line of lines) {
           const rec = JSON.parse(line) as SessionRecord;
-          if (rec.type === "user") {
+          if (rec.type === "user" && !preview) {
             const msg = rec.message as { content: string } | undefined;
             preview = msg?.content?.slice(0, 100) ?? "";
-            break;
+          }
+          if (rec.type === "session_meta" && rec.agentSessionId) {
+            agentSessionId = rec.agentSessionId as string;
           }
         }
         sessions.push({
           sessionId,
           createdAt: meta.timestamp ?? meta.createdAt as string ?? "",
           preview,
+          agentSessionId,
         });
       } catch {
         // skip corrupted files

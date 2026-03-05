@@ -47,7 +47,7 @@ interface PluginState {
 async function readClaudeSettings(): Promise<Record<string, unknown>> {
   try {
     const home = await homeDir();
-    const path = `${home}.claude/settings.json`;
+    const path = `${home}/.claude/settings.json`;
     const content = await invoke<string>("read_file", { path });
     return JSON.parse(content);
   } catch {
@@ -57,7 +57,7 @@ async function readClaudeSettings(): Promise<Record<string, unknown>> {
 
 async function runClaudeCommand(args: string[]): Promise<void> {
   const home = await homeDir();
-  const claudePath = `${home}.claude/local/claude`;
+  const claudePath = `${home}/.claude/local/claude`;
   await invoke<string>("run_command", {
     command: claudePath,
     args,

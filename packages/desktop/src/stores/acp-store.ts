@@ -38,6 +38,7 @@ import type {
 interface ACPState {
   connected: boolean;
   sessionId: string | null;
+  agentSessionId: string | null;
   cwd: string | null;
   messages: ACPMessage[];
   toolCalls: Record<string, ACPToolCall>;
@@ -75,6 +76,7 @@ function generateUUID(): string {
 export const useACPStore = create<ACPState>((set, get) => ({
   connected: false,
   sessionId: null,
+  agentSessionId: null,
   cwd: null,
   messages: [],
   toolCalls: {},
@@ -222,45 +224,80 @@ export const useACPStore = create<ACPState>((set, get) => ({
 
   viewSession: async (projectPath, sessionId) => {
     try {
-      const records = await loadSession(projectPath, sessionId);
-      const messages: ACPMessage[] = [];
-      const toolCalls: Record<string, ACPToolCall> = {};
-      const timeline: TimelineEntry[] = [];
+      // Find the agentSessionId from the session list
+      const sessions = get().sessions;
+      const sessionInfo = sessions.find((s) => s.sessionId === sessionId);
+      const agentSessionId = sessionInfo?.agentSessionId;
 
-      let plan: PlanEntry[] = [];
+      if (agentSessionId) {
+        // Resume session via ACP load_session
+        // Stop existing agent if running
+        if (get().connected) {
+          await invoke("acp_stop_agent");
+          // Wait briefly for cleanup
+          await new Promise((r) => setTimeout(r, 100));
+        }
 
-      for (const rec of records) {
-        if (rec.type === "user" || rec.type === "agent") {
-          const msg = rec.message as { role: "user" | "agent"; content: string };
-          timeline.push({ kind: "message", messageIndex: messages.length });
-          messages.push({
-            role: msg.role,
-            content: msg.content,
-            timestamp: new Date(rec.timestamp).getTime(),
-          });
-        } else if (rec.type === "tool_call") {
-          const tc = rec.toolCall as ACPToolCall;
-          if (tc) {
-            toolCalls[tc.toolCallId] = tc;
-            timeline.push({ kind: "tool_call", toolCallId: tc.toolCallId });
-          }
-        } else if (rec.type === "plan") {
-          plan = (rec.entries as PlanEntry[]) ?? [];
-          if (!timeline.some((t) => t.kind === "plan")) {
-            timeline.push({ kind: "plan" });
+        // Reset state — agent will replay history via session/update events
+        set({
+          sessionId,
+          agentSessionId,
+          messages: [],
+          toolCalls: {},
+          timeline: [],
+          plan: [],
+          isViewingHistory: false,
+        });
+
+        // Start agent with load_session
+        await invoke("acp_load_session", {
+          agentPath: "claude-agent-acp",
+          agentArgs: [],
+          cwd: projectPath,
+          sessionId: agentSessionId,
+        });
+      } else {
+        // Fallback: read-only view for sessions without agentSessionId
+        const records = await loadSession(projectPath, sessionId);
+        const messages: ACPMessage[] = [];
+        const toolCalls: Record<string, ACPToolCall> = {};
+        const timeline: TimelineEntry[] = [];
+
+        let plan: PlanEntry[] = [];
+
+        for (const rec of records) {
+          if (rec.type === "user" || rec.type === "agent") {
+            const msg = rec.message as { role: "user" | "agent"; content: string };
+            timeline.push({ kind: "message", messageIndex: messages.length });
+            messages.push({
+              role: msg.role,
+              content: msg.content,
+              timestamp: new Date(rec.timestamp).getTime(),
+            });
+          } else if (rec.type === "tool_call") {
+            const tc = rec.toolCall as ACPToolCall;
+            if (tc) {
+              toolCalls[tc.toolCallId] = tc;
+              timeline.push({ kind: "tool_call", toolCallId: tc.toolCallId });
+            }
+          } else if (rec.type === "plan") {
+            plan = (rec.entries as PlanEntry[]) ?? [];
+            if (!timeline.some((t) => t.kind === "plan")) {
+              timeline.push({ kind: "plan" });
+            }
           }
         }
-      }
 
-      set({
-        sessionId,
-        messages,
-        toolCalls,
-        timeline,
-        plan,
-        isViewingHistory: true,
-        connected: false,
-      });
+        set({
+          sessionId,
+          messages,
+          toolCalls,
+          timeline,
+          plan,
+          isViewingHistory: true,
+          connected: false,
+        });
+      }
     } catch (e) {
       console.error("[acp] view session failed:", e);
     }
@@ -269,6 +306,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
   newChat: () => {
     set({
       sessionId: null,
+      agentSessionId: null,
       messages: [],
       toolCalls: {},
       timeline: [],
@@ -342,6 +380,23 @@ export const useACPStore = create<ACPState>((set, get) => ({
     listen("acp-permission", (event) => {
       const req = event.payload as ACPPermissionRequest;
       set({ pendingPermission: req });
+    }).then((fn) => unlisteners.push(fn));
+
+    listen("acp-session-id", (event) => {
+      const agentSessionId = event.payload as string;
+      set({ agentSessionId });
+      // Persist agentSessionId to session_meta
+      const state = get();
+      if (state.sessionId && state.cwd) {
+        persist({
+          type: "session_meta",
+          sessionId: state.sessionId,
+          timestamp: new Date().toISOString(),
+          agentSessionId,
+          projectPath: state.cwd,
+          agentPath: "claude-agent-acp",
+        }, state.cwd);
+      }
     }).then((fn) => unlisteners.push(fn));
 
     listen("acp-config-options", (event) => {
