@@ -70,5 +70,12 @@ export {
   TableHeader,
   TableRow,
 } from "./components/ui/table";
+export { FlickeringGrid } from "./components/ui/flickering-grid";
+export {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./components/ui/tooltip";
 export { ThemeProvider } from "./components/theme-provider";
 export { cn } from "./lib/utils";

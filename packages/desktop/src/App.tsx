@@ -5,6 +5,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  TooltipProvider,
 } from "@helm/ui";
 import { useWorkspaceStore, useLayoutStore, useEditorStore, useSettingsStore, useIconThemeStore, useACPStore } from "./stores";
 import { invalidateBufferCache } from "./hooks/use-codemirror";
@@ -54,12 +55,16 @@ function App() {
     };
   }, [projectPath]);
 
-  // Command Palette: Cmd+Shift+P
+  // Command Palette: Cmd+Shift+P, Search: Cmd+Shift+F
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
         setCommandPaletteOpen((v) => !v);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        useLayoutStore.getState().setSidebarView("search");
       }
     };
     window.addEventListener("keydown", handler);
@@ -69,6 +74,7 @@ function App() {
   const showEditor = hasOpenTabs || projectPath;
 
   return (
+    <TooltipProvider delayDuration={400}>
     <div className="flex h-full w-full flex-col overflow-hidden">
       <Titlebar />
       <div className="flex flex-1 overflow-hidden">
@@ -77,7 +83,7 @@ function App() {
           {/* Sidebar (File Tree) */}
           {showSidebar && (
             <>
-              <ResizablePanel defaultSize="20%" minSize="15%" maxSize="35%">
+              <ResizablePanel defaultSize="22%" minSize="18%" maxSize="35%">
                 <Sidebar />
               </ResizablePanel>
               <ResizableHandle />
@@ -113,7 +119,7 @@ function App() {
           {showSidePanel && (
             <>
               <ResizableHandle />
-              <ResizablePanel defaultSize="40%" minSize="20%" maxSize="50%">
+              <ResizablePanel defaultSize="40%" minSize="30%" maxSize="50%">
                 <AiPanel />
               </ResizablePanel>
             </>
@@ -125,6 +131,7 @@ function App() {
         onClose={() => setCommandPaletteOpen(false)}
       />
     </div>
+    </TooltipProvider>
   );
 }
 

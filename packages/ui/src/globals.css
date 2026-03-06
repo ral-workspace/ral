@@ -135,6 +135,10 @@
     @apply bg-background text-foreground;
   }
 
+  button {
+    cursor: pointer;
+  }
+
   input,
   textarea {
     text-transform: none;

@@ -1,6 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { IconFolderOpen } from "@tabler/icons-react";
 import { useWorkspaceStore } from "../stores";
+import { FlickeringGrid } from "@helm/ui";
 
 export function WelcomeScreen() {
   const selectFolder = useWorkspaceStore((s) => s.selectFolder);
@@ -14,14 +15,24 @@ export function WelcomeScreen() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-8">
-      <div className="text-center">
+    <div className="relative flex h-full w-full flex-col items-center justify-center gap-8">
+      <FlickeringGrid
+        className="absolute inset-0 z-0"
+        style={{ maskImage: "linear-gradient(to bottom, transparent 0%, black 66%)" }}
+        squareSize={4}
+        gridGap={6}
+        color="rgb(96, 165, 250)"
+        maxOpacity={0.15}
+        flickerChance={0.1}
+      />
+
+      <div className="relative z-10 text-center">
         <h1 className="text-3xl font-bold text-foreground">Helm</h1>
         <p className="mt-1 text-sm text-muted-foreground">AI Workspace</p>
       </div>
 
       {/* Action Cards */}
-      <div className="flex gap-3">
+      <div className="relative z-10 flex gap-3">
         <button
           onClick={handleOpenProject}
           className="flex w-44 flex-col gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent"
@@ -34,7 +45,7 @@ export function WelcomeScreen() {
       </div>
 
       {/* Recent Projects */}
-      <div className="w-80">
+      <div className="relative z-10 w-80">
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">
             Recent projects

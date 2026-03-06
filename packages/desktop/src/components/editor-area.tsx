@@ -1,4 +1,4 @@
-import { cn } from "@helm/ui";
+import { cn, FlickeringGrid } from "@helm/ui";
 import { useEditorStore } from "../stores";
 import { isImageFile } from "../lib/file-type";
 import { BROWSER_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX } from "../types/editor";
@@ -22,8 +22,17 @@ export function EditorArea({ className }: EditorAreaProps) {
 
   if (openTabs.length === 0) {
     return (
-      <div className={cn("flex h-full flex-col bg-background", className)}>
-        <div className="flex flex-1 items-center justify-center">
+      <div className={cn("relative flex h-full flex-col bg-background", className)}>
+        <FlickeringGrid
+          className="absolute inset-0 z-0"
+          style={{ maskImage: "linear-gradient(to bottom, transparent 0%, black 66%)" }}
+          squareSize={4}
+          gridGap={6}
+          color="rgb(96, 165, 250)"
+          maxOpacity={0.15}
+          flickerChance={0.1}
+        />
+        <div className="relative z-10 flex flex-1 items-center justify-center">
           <div className="text-center space-y-2">
             <h2 className="text-2xl font-semibold text-foreground/80">Helm</h2>
             <p className="text-sm text-muted-foreground">

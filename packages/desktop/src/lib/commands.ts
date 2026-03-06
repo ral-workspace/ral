@@ -87,3 +87,10 @@ registerCommand({
   category: "View",
   run: () => useLayoutStore.getState().toggleSidePanel(),
 });
+
+registerCommand({
+  id: "workbench.action.findInFiles",
+  label: "Find in Files",
+  category: "Search",
+  run: () => useLayoutStore.getState().setSidebarView("search"),
+});

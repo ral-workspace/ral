@@ -7,3 +7,4 @@ export { useACPStore } from "./acp-store";
 export { useDiffStore } from "./diff-store";
 export { useDatabaseStore } from "./database-store";
 export { usePluginStore } from "./plugin-store";
+export { useSearchStore } from "./search-store";

@@ -30,6 +30,7 @@ pub fn run() {
             fs::delete_path,
             fs::run_command,
             search::search_text,
+            search::search_files,
             watcher::start_file_watcher,
             watcher::stop_file_watcher,
             terminal::spawn_terminal,
