@@ -167,6 +167,10 @@ export function Sidebar({ className }: SidebarProps) {
                   setSelectedPath(path);
                   setSelectedIsDir(isDir);
                 }}
+                onRequestCreate={(parentPath, type) => {
+                  setCreatingItem({ parentPath, type });
+                  setExplorerOpen(true);
+                }}
                 refreshCounter={fileTreeRefreshKey + manualRefreshKey}
               />
             </div>

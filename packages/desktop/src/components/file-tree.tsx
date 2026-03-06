@@ -5,6 +5,8 @@ import {
   IconChevronRight,
 } from "@tabler/icons-react";
 import { FileIcon, FolderIcon } from "./file-icon";
+import type { NativeMenuItem } from "../lib/native-context-menu";
+import { useNativeContextMenu } from "../lib/use-native-context-menu";
 
 interface DirEntry {
   name: string;
@@ -24,6 +26,7 @@ interface FileTreeProps {
   onCreatingDone?: () => void;
   selectedPath: string | null;
   onSelect?: (path: string, isDirectory: boolean) => void;
+  onRequestCreate?: (parentPath: string, type: "file" | "folder") => void;
   refreshCounter: number;
 }
 
@@ -74,6 +77,7 @@ export function FileTree({
   onCreatingDone,
   selectedPath,
   onSelect,
+  onRequestCreate,
   refreshCounter,
 }: FileTreeProps) {
   const [entries, setEntries] = useState<DirEntry[]>([]);
@@ -211,11 +215,14 @@ export function FileTree({
           key={entry.path}
           entry={entry}
           depth={0}
+          rootPath={rootPath}
           onFileOpen={onFileOpen}
           creatingItem={creatingItem}
           onCreatingDone={handleCreated}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          onRequestCreate={onRequestCreate}
+          onTreeReload={reload}
           dropTarget={dropTarget}
           dragSource={dragSource}
           autoExpandPathRef={autoExpandPathRef}
@@ -298,11 +305,14 @@ function InlineInput({
 function TreeItem({
   entry,
   depth,
+  rootPath,
   onFileOpen,
   creatingItem,
   onCreatingDone,
   selectedPath,
   onSelect,
+  onRequestCreate,
+  onTreeReload,
   dropTarget,
   dragSource,
   autoExpandPathRef,
@@ -310,11 +320,14 @@ function TreeItem({
 }: {
   entry: DirEntry;
   depth: number;
+  rootPath: string;
   onFileOpen?: (path: string, pinned: boolean) => void;
   creatingItem?: CreatingItem | null;
   onCreatingDone?: () => void;
   selectedPath: string | null;
   onSelect?: (path: string, isDirectory: boolean) => void;
+  onRequestCreate?: (parentPath: string, type: "file" | "folder") => void;
+  onTreeReload?: () => void;
   dropTarget: string | null;
   dragSource: string | null;
   autoExpandPathRef: React.MutableRefObject<string | null>;
@@ -384,6 +397,52 @@ function TreeItem({
 
   const handleCreated = () => { reloadChildren(); onCreatingDone?.(); };
 
+  const getContextMenuItems = useCallback((): NativeMenuItem[] => {
+    const items: NativeMenuItem[] = [];
+    if (entry.is_directory) {
+      items.push({ type: "item", id: "new-file", label: "New File" });
+      items.push({ type: "item", id: "new-folder", label: "New Folder" });
+      items.push({ type: "separator" });
+    }
+    items.push({ type: "item", id: "rename", label: "Rename" });
+    items.push({ type: "item", id: "delete", label: "Delete" });
+    items.push({ type: "separator" });
+    items.push({ type: "item", id: "copy-path", label: "Copy Path" });
+    items.push({ type: "item", id: "copy-relative-path", label: "Copy Relative Path" });
+    return items;
+  }, [entry.is_directory]);
+
+  const handleContextMenuAction = useCallback((actionId: string) => {
+    switch (actionId) {
+      case "new-file":
+        onRequestCreate?.(entry.path, "file");
+        break;
+      case "new-folder":
+        onRequestCreate?.(entry.path, "folder");
+        break;
+      case "delete":
+        invoke("delete_path", { path: entry.path })
+          .then(() => {
+            onTreeReload?.();
+            reloadChildren();
+          })
+          .catch((err) => console.error("Failed to delete:", err));
+        break;
+      case "copy-path":
+        navigator.clipboard.writeText(entry.path);
+        break;
+      case "copy-relative-path": {
+        const relative = entry.path.startsWith(rootPath + "/")
+          ? entry.path.slice(rootPath.length + 1)
+          : entry.path;
+        navigator.clipboard.writeText(relative);
+        break;
+      }
+    }
+  }, [entry.path, entry.is_directory, rootPath, onRequestCreate, onTreeReload, reloadChildren]);
+
+  const { onContextMenu } = useNativeContextMenu(getContextMenuItems, handleContextMenuAction);
+
   return (
     <>
       <div
@@ -392,6 +451,7 @@ function TreeItem({
         data-tree-dir={entry.is_directory ? "true" : "false"}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
+        onContextMenu={onContextMenu}
         role="treeitem"
         className={[
           "flex h-[22px] w-full cursor-default items-center gap-1 pr-2 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent",
@@ -447,11 +507,14 @@ function TreeItem({
                 key={child.path}
                 entry={child}
                 depth={depth + 1}
+                rootPath={rootPath}
                 onFileOpen={onFileOpen}
                 creatingItem={creatingItem}
                 onCreatingDone={handleCreated}
                 selectedPath={selectedPath}
                 onSelect={onSelect}
+                onRequestCreate={onRequestCreate}
+                onTreeReload={onTreeReload}
                 dropTarget={dropTarget}
                 dragSource={dragSource}
                 autoExpandPathRef={autoExpandPathRef}

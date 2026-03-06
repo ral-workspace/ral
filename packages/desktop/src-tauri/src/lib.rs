@@ -1,4 +1,5 @@
 mod acp;
+mod context_menu;
 mod document;
 mod fs;
 mod icon_themes;
@@ -26,6 +27,7 @@ pub fn run() {
             fs::append_file,
             fs::create_dir,
             fs::rename_path,
+            fs::delete_path,
             fs::run_command,
             search::search_text,
             watcher::start_file_watcher,
@@ -45,6 +47,7 @@ pub fn run() {
             acp::acp_set_config_option,
             acp::acp_stop_agent,
             document::convert_to_pdf,
+            context_menu::show_context_menu,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

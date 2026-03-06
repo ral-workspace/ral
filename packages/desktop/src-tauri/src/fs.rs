@@ -86,6 +86,16 @@ pub(crate) fn rename_path(from: String, to: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub(crate) fn delete_path(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    if p.is_dir() {
+        fs::remove_dir_all(p).map_err(|e| e.to_string())
+    } else {
+        fs::remove_file(p).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
 pub(crate) async fn run_command(command: String, args: Vec<String>) -> Result<String, String> {
     let output = tokio::process::Command::new(&command)
         .args(&args)
