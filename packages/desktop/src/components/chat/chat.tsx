@@ -80,7 +80,6 @@ export function AiChat({ className }: AiChatProps) {
         currentLabel={currentLabel}
         sessionId={sessionId}
         sessions={sessions}
-        connected={connected}
         onNewChat={handleNewChat}
         onViewSession={handleViewSession}
         onLoadSessions={handleLoadSessions}

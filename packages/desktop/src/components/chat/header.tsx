@@ -12,7 +12,6 @@ interface ChatHeaderProps {
   currentLabel: string;
   sessionId: string | null;
   sessions: SessionSummary[];
-  connected: boolean;
   onNewChat: () => void;
   onViewSession: (sessionId: string) => void;
   onLoadSessions: () => void;
@@ -22,7 +21,6 @@ export function ChatHeader({
   currentLabel,
   sessionId,
   sessions,
-  connected,
   onNewChat,
   onViewSession,
   onLoadSessions,
@@ -87,13 +85,6 @@ export function ChatHeader({
         </button>
         <div className="flex-1" />
         <div className="flex items-center gap-0.5">
-          <span
-            title={connected ? "Connected" : "Disconnected"}
-            className={cn(
-              "mr-0.5 size-1.5 rounded-full",
-              connected ? "bg-green-500" : "bg-red-500",
-            )}
-          />
           <Button
             variant="ghost"
             size="icon-xs"

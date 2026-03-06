@@ -23,7 +23,7 @@ export function ChatInput({
   const [input, setInput] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const connected = useACPStore((s) => s.connected);
+  const sessionReady = useACPStore((s) => s.sessionReady);
   const availableCommands = useACPStore((s) => s.availableCommands);
   const pendingPermission = useACPStore((s) => s.pendingPermission);
   const respondPermission = useACPStore((s) => s.respondPermission);
@@ -42,7 +42,7 @@ export function ChatInput({
 
   const handleSend = () => {
     const text = input.trim();
-    if (!text || isPrompting || !connected) return;
+    if (!text || isPrompting) return;
     setInput("");
     onSend(text);
   };
@@ -225,8 +225,8 @@ export function ChatInput({
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Send a message..."
-          disabled={isPrompting || !connected}
+          placeholder={sessionReady ? "Send a message..." : "Connecting..."}
+          disabled={isPrompting}
           rows={1}
           className="w-full resize-none bg-transparent px-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
         />
@@ -257,7 +257,7 @@ export function ChatInput({
               <Button
                 size="icon-xs"
                 onClick={handleSend}
-                disabled={!input.trim() || !connected}
+                disabled={!input.trim()}
                 title="Send"
               >
                 <IconCornerRightUp />

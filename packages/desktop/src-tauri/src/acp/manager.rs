@@ -1,6 +1,8 @@
 use agent_client_protocol as acp;
 use acp::Agent as _;
 use std::rc::Rc;
+use std::sync::OnceLock;
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -88,10 +90,15 @@ async fn run_acp_session(
     mut cmd_rx: mpsc::Receiver<ACPCommand>,
     load_session_id: Option<String>,
 ) -> Result<(), String> {
+    let t_total = Instant::now();
+
     // Resolve shell PATH (macOS apps don't inherit shell environment)
+    let t0 = Instant::now();
     let shell_path = resolve_shell_path();
+    eprintln!("[acp timing] resolve_shell_path: {}ms", t0.elapsed().as_millis());
 
     // Spawn the agent process
+    let t1 = Instant::now();
     let mut cmd = tokio::process::Command::new(&agent_path);
     cmd.args(&agent_args)
         .stdin(std::process::Stdio::piped())
@@ -105,6 +112,7 @@ async fn run_acp_session(
 
     let mut child = cmd.spawn()
         .map_err(|e| format!("Failed to start agent '{}': {}", agent_path, e))?;
+    eprintln!("[acp timing] spawn process: {}ms", t1.elapsed().as_millis());
 
     let stdin = child.stdin.take()
         .ok_or("Failed to get agent stdin")?;
@@ -145,9 +153,11 @@ async fn run_acp_session(
         .client_capabilities(caps)
         .client_info(client_info);
 
+    let t2 = Instant::now();
     let init_response = conn.initialize(init_request)
         .await
         .map_err(|e| format!("ACP initialize failed: {}", e))?;
+    eprintln!("[acp timing] initialize: {}ms", t2.elapsed().as_millis());
 
     eprintln!("[acp] initialized with agent: {:?}", init_response.agent_info);
     let _ = app.emit("acp-connected", serde_json::to_value(&init_response.agent_info).unwrap_or_default());
@@ -159,6 +169,7 @@ async fn run_acp_session(
     }
 
     // Create or load a session
+    let t3 = Instant::now();
     let cwd_path = std::path::PathBuf::from(&cwd);
     let (session_id, config_options) = if let Some(ref sid) = load_session_id {
         // Load an existing session
@@ -167,6 +178,7 @@ async fn run_acp_session(
         let load_response = conn.load_session(load_req)
             .await
             .map_err(|e| format!("ACP load_session failed: {}", e))?;
+        eprintln!("[acp timing] load_session: {}ms", t3.elapsed().as_millis());
         eprintln!("[acp] session loaded: {}", sid);
         (acp::SessionId::from(sid.clone()), load_response.config_options)
     } else {
@@ -200,9 +212,11 @@ async fn run_acp_session(
             }
         };
         let sid = session_response.session_id.clone();
+        eprintln!("[acp timing] new_session: {}ms", t3.elapsed().as_millis());
         eprintln!("[acp] session created: {}", sid);
         (sid, session_response.config_options)
     };
+    eprintln!("[acp timing] total startup: {}ms", t_total.elapsed().as_millis());
 
     // Emit the agent's session ID to the frontend
     let _ = app.emit("acp-session-id", session_id.to_string());
@@ -368,14 +382,19 @@ async fn run_terminal_auth(ta: &TerminalAuthCommand, shell_path: Option<&str>) -
     }
 }
 
-/// Resolve PATH from the user's login shell on macOS.
+/// Cached shell PATH — resolved once per process lifetime.
+static SHELL_PATH: OnceLock<Option<String>> = OnceLock::new();
+
+/// Resolve PATH from the user's login shell on macOS (cached).
 /// GUI apps don't inherit the shell environment, so tools like `node` aren't found.
 fn resolve_shell_path() -> Option<String> {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    let output = std::process::Command::new(&shell)
-        .args(["-l", "-c", "echo $PATH"])
-        .output()
-        .ok()?;
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if path.is_empty() { None } else { Some(path) }
+    SHELL_PATH.get_or_init(|| {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let output = std::process::Command::new(&shell)
+            .args(["-l", "-c", "echo $PATH"])
+            .output()
+            .ok()?;
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if path.is_empty() { None } else { Some(path) }
+    }).clone()
 }

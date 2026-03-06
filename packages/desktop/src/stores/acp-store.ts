@@ -7,6 +7,7 @@ import {
   type SessionSummary,
 } from "../services/chat-history";
 import { handleSessionUpdate, persist } from "./acp-handler";
+import { useWorkspaceStore } from "./workspace-store";
 
 // Re-export all types for consumers
 export type {
@@ -37,6 +38,7 @@ import type {
 
 interface ACPState {
   connected: boolean;
+  sessionReady: boolean;
   sessionId: string | null;
   agentSessionId: string | null;
   cwd: string | null;
@@ -75,6 +77,7 @@ function generateUUID(): string {
 
 export const useACPStore = create<ACPState>((set, get) => ({
   connected: false,
+  sessionReady: false,
   sessionId: null,
   agentSessionId: null,
   cwd: null,
@@ -102,7 +105,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
       // If agent is already running (e.g. after HMR reload), just update cwd
       if (String(e).includes("already running")) {
         console.log("[acp] agent already running, reusing session");
-        set({ connected: true, cwd });
+        set({ connected: true, sessionReady: true, cwd });
         return;
       }
       console.error("[acp] start agent failed:", e);
@@ -154,6 +157,16 @@ export const useACPStore = create<ACPState>((set, get) => ({
         uuid: generateUUID(),
         message: { role: "user", content: text },
       }, get().cwd);
+    }
+
+    // Wait for session to be ready (prewarm may still be in progress)
+    if (!get().sessionReady) {
+      await new Promise<void>((resolve) => {
+        if (get().sessionReady) { resolve(); return; }
+        const unsub = useACPStore.subscribe((state) => {
+          if (state.sessionReady) { unsub(); resolve(); }
+        });
+      });
     }
 
     try {
@@ -319,6 +332,23 @@ export const useACPStore = create<ACPState>((set, get) => ({
     if (initialized) return;
     initialized = true;
 
+    // Prewarm: start agent immediately if a project is already open
+    // This runs the full startup (spawn → initialize → new_session) in the background
+    // so the session is ready by the time the user opens the AI panel.
+    // Unused sessions don't create jsonl files, so no garbage accumulates.
+    const { projectPath } = useWorkspaceStore.getState();
+    if (projectPath) {
+      get().startAgent(projectPath);
+    } else {
+      // If no project yet, start agent as soon as one is opened
+      const unsub = useWorkspaceStore.subscribe((state) => {
+        if (state.projectPath && !get().connected) {
+          get().startAgent(state.projectPath);
+          unsub();
+        }
+      });
+    }
+
     // Listen for ACP events
     listen("acp-connected", (event) => {
       set({
@@ -344,6 +374,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
       }
       set({
         connected: false,
+        sessionReady: false,
         agentInfo: null,
         isPrompting: false,
         pendingPermission: null,
@@ -384,7 +415,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
 
     listen("acp-session-id", (event) => {
       const agentSessionId = event.payload as string;
-      set({ agentSessionId });
+      set({ agentSessionId, sessionReady: true });
       // Persist agentSessionId to session_meta
       const state = get();
       if (state.sessionId && state.cwd) {
