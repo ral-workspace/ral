@@ -7,7 +7,7 @@ import {
   highlightActiveLineGutter,
   keymap,
 } from "@codemirror/view";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Compartment, EditorState, StateEffect } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import {
   syntaxHighlighting,
@@ -30,8 +30,9 @@ import { useTheme } from "next-themes";
 import { getLanguageExtension } from "../lib/detect-language";
 import { diffGutterExtension, updateDiffMarkers, type DiffLine } from "../lib/diff-gutter";
 import { resolveEditorLineHeight } from "../settings";
-import { useSettingsStore, useEditorStore } from "../stores";
+import { useSettingsStore, useEditorStore, useWorkspaceStore } from "../stores";
 import type { Settings } from "../settings";
+import { getOrStartLspClient } from "../services/lsp-service";
 
 // --- Theme map ---
 
@@ -329,6 +330,19 @@ export function useCodeMirror({
 
     // Load diff markers
     refreshDiffMarkers(filePath);
+
+    // Start LSP client (async, best-effort)
+    const projectPath = useWorkspaceStore.getState().projectPath;
+    if (projectPath) {
+      getOrStartLspClient(filePath, projectPath).then((result) => {
+        if (!result || editorViewRef.current !== view) return;
+        const fileUri = `file://${filePath}`;
+        const lspExt = result.client.plugin(fileUri, result.languageId);
+        view.dispatch({
+          effects: StateEffect.appendConfig.of(lspExt),
+        });
+      }).catch(() => {});
+    }
 
     return () => {
       // Save state on cleanup (unmount)

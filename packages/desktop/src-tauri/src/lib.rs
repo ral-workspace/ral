@@ -5,6 +5,7 @@ mod document;
 mod fs;
 mod git;
 mod icon_themes;
+mod lsp;
 mod search;
 mod terminal;
 mod watcher;
@@ -24,6 +25,7 @@ pub fn run() {
         .manage(Mutex::new(acp::ACPManager::new()))
         .manage(Mutex::new(document::ConversionCache::new()))
         .manage(Mutex::new(mcp::McpState::new()))
+        .manage(Mutex::new(lsp::LspManager::new()))
         .invoke_handler(tauri::generate_handler![
             fs::read_dir,
             fs::read_file,
@@ -57,6 +59,9 @@ pub fn run() {
             mcp::mcp_connect,
             mcp::mcp_read_resource,
             git::git_diff_lines,
+            lsp::lsp_start,
+            lsp::lsp_send,
+            lsp::lsp_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
