@@ -17,6 +17,7 @@ import { WelcomeScreen } from "./components/welcome-screen";
 import { Titlebar } from "./components/titlebar";
 import { CommandPalette } from "./components/command-palette";
 import { QuickOpen } from "./components/quick-open";
+import { getCommands } from "./lib/commands";
 
 function App() {
   const projectPath = useWorkspaceStore((s) => s.projectPath);
@@ -79,6 +80,12 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
         useLayoutStore.getState().setSidebarView("search");
+      }
+      // Ctrl+Shift+` to create new terminal
+      if (e.ctrlKey && e.shiftKey && e.key === "`") {
+        e.preventDefault();
+        const { run } = getCommands().find((c) => c.id === "workbench.action.terminal.new") ?? {};
+        run?.();
       }
       // Cmd+\ to split editor right
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {

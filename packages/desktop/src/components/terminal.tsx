@@ -1,49 +1,47 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { terminalService } from "../services/terminal-service";
 import { useSettingsStore } from "../stores";
 
-interface TerminalProps {
-  cwd?: string;
-}
-
-export function Terminal({ cwd }: TerminalProps) {
+export function Terminal({ cwd }: { cwd?: string }) {
   const settings = useSettingsStore((s) => s.settings);
   const containerRef = useRef<HTMLDivElement>(null);
-  const terminalIdRef = useRef<number | null>(null);
+  const prevIdRef = useRef<number | null>(null);
 
+  const activeId = useSyncExternalStore(
+    (cb) => terminalService.subscribe(cb),
+    () => terminalService.getActiveTerminalId(),
+  );
+
+  // Create initial terminal if none exists
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (terminalService.getTerminalIds().length === 0) {
+      terminalService.createTerminal(cwd, settings);
+    }
+  }, []);
+
+  // Attach/detach when activeId changes
+  useEffect(() => {
     const container = containerRef.current;
+    if (!container) return;
 
-    let id = terminalService.getActiveTerminalId();
-
-    if (id === null) {
-      // No existing terminal — create one
-      let cancelled = false;
-      terminalService.createTerminal(cwd, settings).then((newId) => {
-        if (cancelled) return;
-        terminalIdRef.current = newId;
-        terminalService.attachToDOM(newId, container);
-      });
-
-      return () => {
-        cancelled = true;
-        if (terminalIdRef.current !== null) {
-          terminalService.detachFromDOM(terminalIdRef.current);
-        }
-      };
+    // Detach previous
+    if (prevIdRef.current !== null && prevIdRef.current !== activeId) {
+      terminalService.detachFromDOM(prevIdRef.current);
     }
 
-    // Existing terminal — just re-attach
-    terminalIdRef.current = id;
-    terminalService.attachToDOM(id, container);
+    // Attach current
+    if (activeId !== null) {
+      terminalService.attachToDOM(activeId, container);
+    }
+
+    prevIdRef.current = activeId;
 
     return () => {
-      if (terminalIdRef.current !== null) {
-        terminalService.detachFromDOM(terminalIdRef.current);
+      if (activeId !== null) {
+        terminalService.detachFromDOM(activeId);
       }
     };
-  }, [cwd]);
+  }, [activeId]);
 
   // Update existing terminals when settings change
   useEffect(() => {

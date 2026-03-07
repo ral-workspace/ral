@@ -36,10 +36,28 @@ interface TerminalInstance {
   opened: boolean; // whether xterm.open() has been called
 }
 
+type TerminalChangeListener = () => void;
+
 class TerminalService {
   private instances = new Map<number, TerminalInstance>();
   private nextId = 1;
   private activeId: number | null = null;
+  private listeners = new Set<TerminalChangeListener>();
+
+  /** Subscribe to changes (instance list or activeId). Returns unsubscribe fn. */
+  subscribe(listener: TerminalChangeListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify(): void {
+    for (const l of this.listeners) l();
+  }
+
+  /** Returns ordered list of terminal ids */
+  getTerminalIds(): number[] {
+    return [...this.instances.keys()];
+  }
 
   async createTerminal(cwd?: string, termSettings?: TerminalSettings): Promise<number> {
     const xterm = new XTerm({
@@ -82,6 +100,7 @@ class TerminalService {
     });
 
     this.activeId = id;
+    this.notify();
     return id;
   }
 
@@ -150,8 +169,11 @@ class TerminalService {
     this.instances.delete(id);
 
     if (this.activeId === id) {
-      this.activeId = null;
+      // Switch to the nearest remaining terminal
+      const ids = this.getTerminalIds();
+      this.activeId = ids.length > 0 ? ids[ids.length - 1] : null;
     }
+    this.notify();
   }
 
   getActiveTerminalId(): number | null {
@@ -159,7 +181,9 @@ class TerminalService {
   }
 
   setActiveTerminalId(id: number): void {
+    if (this.activeId === id) return;
     this.activeId = id;
+    this.notify();
   }
 
   updateTerminalSettings(termSettings: TerminalSettings): void {

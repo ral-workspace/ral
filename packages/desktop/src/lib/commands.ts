@@ -1,5 +1,6 @@
 import { useEditorStore, useACPStore } from "../stores";
-import { useLayoutStore, useWorkspaceStore } from "../stores";
+import { useLayoutStore, useWorkspaceStore, useSettingsStore } from "../stores";
+import { terminalService } from "../services/terminal-service";
 
 export interface Command {
   id: string;
@@ -93,4 +94,27 @@ registerCommand({
   label: "Find in Files",
   category: "Search",
   run: () => useLayoutStore.getState().setSidebarView("search"),
+});
+
+registerCommand({
+  id: "workbench.action.terminal.new",
+  label: "Create New Terminal",
+  category: "Terminal",
+  run: () => {
+    const layout = useLayoutStore.getState();
+    if (!layout.showBottomPanel) layout.setShowBottomPanel(true);
+    const cwd = useWorkspaceStore.getState().projectPath ?? undefined;
+    const settings = useSettingsStore.getState().settings;
+    terminalService.createTerminal(cwd, settings);
+  },
+});
+
+registerCommand({
+  id: "workbench.action.terminal.kill",
+  label: "Kill Active Terminal",
+  category: "Terminal",
+  run: () => {
+    const id = terminalService.getActiveTerminalId();
+    if (id !== null) terminalService.killTerminal(id);
+  },
 });
