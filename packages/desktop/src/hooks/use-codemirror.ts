@@ -28,6 +28,7 @@ import {
 } from "thememirror";
 import { useTheme } from "next-themes";
 import { getLanguageExtension } from "../lib/detect-language";
+import { diffGutterExtension, updateDiffMarkers, type DiffLine } from "../lib/diff-gutter";
 import { resolveEditorLineHeight } from "../settings";
 import { useSettingsStore, useEditorStore } from "../stores";
 import type { Settings } from "../settings";
@@ -190,7 +191,10 @@ export function useCodeMirror({
             if (!view) return false;
             const doc = view.state.doc.toString();
             invoke("write_file", { path, content: doc })
-              .then(() => useEditorStore.getState().markClean(path))
+              .then(() => {
+                useEditorStore.getState().markClean(path);
+                refreshDiffMarkers(path);
+              })
               .catch((err) => console.error("Save failed:", err));
             return true;
           },
@@ -208,9 +212,25 @@ export function useCodeMirror({
       c.tabSize.of(EditorState.tabSize.of(settings["editor.tabSize"])),
     ];
 
+    extensions.push(diffGutterExtension());
+
     const langExt = getLanguageExtension(path);
     if (langExt) extensions.push(langExt);
     return extensions;
+  };
+
+  // Fetch and apply diff markers for the current file
+  const refreshDiffMarkers = (path: string) => {
+    invoke<DiffLine[]>("git_diff_lines", { filePath: path })
+      .then((lines) => {
+        const view = editorViewRef.current;
+        if (view) updateDiffMarkers(view, lines);
+      })
+      .catch(() => {
+        // Not in a git repo or file not tracked — clear markers
+        const view = editorViewRef.current;
+        if (view) updateDiffMarkers(view, []);
+      });
   };
 
   // Load file content (skip if cached)
@@ -306,6 +326,9 @@ export function useCodeMirror({
 
     editorViewRef.current = view;
     activeEditorView = view;
+
+    // Load diff markers
+    refreshDiffMarkers(filePath);
 
     return () => {
       // Save state on cleanup (unmount)

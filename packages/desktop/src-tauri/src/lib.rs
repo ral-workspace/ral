@@ -3,6 +3,7 @@ mod mcp;
 mod context_menu;
 mod document;
 mod fs;
+mod git;
 mod icon_themes;
 mod search;
 mod terminal;
@@ -55,6 +56,7 @@ pub fn run() {
             context_menu::show_context_menu,
             mcp::mcp_connect,
             mcp::mcp_read_resource,
+            git::git_diff_lines,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
