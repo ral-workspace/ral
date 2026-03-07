@@ -86,5 +86,10 @@ export {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "./components/ui/breadcrumb";
+export {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "./components/ui/popover";
 export { ThemeProvider } from "./components/theme-provider";
 export { cn } from "./lib/utils";
