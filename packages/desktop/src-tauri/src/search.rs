@@ -122,7 +122,6 @@ pub(crate) fn search_text(
 
         let path = entry.path();
         let relative = path.strip_prefix(root).unwrap_or(path);
-        let rel_str = relative.to_string_lossy();
 
         // Apply include/exclude filters
         if let Some(ref inc) = include_set {

@@ -127,7 +127,7 @@ export function FileTree({
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     const el = e.target as HTMLElement;
-    const row = findTreeRow(el);
+    findTreeRow(el);
     const folder = resolveDropFolder(el, rootPath);
     if (folder !== dropTargetRef.current) {
       dropTargetRef.current = folder;
