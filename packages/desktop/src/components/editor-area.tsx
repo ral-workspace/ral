@@ -1,26 +1,47 @@
-import { cn, FlickeringGrid } from "@helm/ui";
+import { cn, FlickeringGrid, ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@helm/ui";
 import { useEditorStore } from "../stores";
-import { isImageFile } from "../lib/file-type";
-import { BROWSER_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX } from "../types/editor";
-import { TabBar } from "./tab-bar";
-import { CodeMirrorEditor } from "./codemirror-editor";
-import { DiffEditor } from "./diff-editor";
-import { DatabaseViewer } from "./database-viewer";
-import { DocumentViewer } from "./document-viewer";
-import { ImagePreview } from "./image-preview";
-import { SettingsEditor } from "./settings-editor";
-import { SimpleBrowser } from "./simple-browser";
+import type { SplitNode } from "../types/editor";
+import { EditorPane } from "./editor-pane";
 
 interface EditorAreaProps {
   className?: string;
 }
 
-export function EditorArea({ className }: EditorAreaProps) {
-  const openTabs = useEditorStore((s) => s.openTabs);
-  const activeTabId = useEditorStore((s) => s.activeTabId);
-  const activeTab = openTabs.find((t) => t.id === activeTabId) ?? null;
+function SplitNodeView({ node }: { node: SplitNode }) {
+  if (node.type === "leaf") {
+    return <EditorPane groupId={node.groupId} className="h-full" />;
+  }
 
-  if (openTabs.length === 0) {
+  return (
+    <ResizablePanelGroup orientation={node.direction}>
+      {node.children.map((child, i) => (
+        <SplitNodePanel key={i} child={child} index={i} total={node.children.length} />
+      ))}
+    </ResizablePanelGroup>
+  );
+}
+
+function SplitNodePanel({ child, index, total }: { child: SplitNode; index: number; total: number }) {
+  return (
+    <>
+      {index > 0 && <ResizableHandle />}
+      <ResizablePanel defaultSize={`${100 / total}%`} minSize="10%">
+        <SplitNodeView node={child} />
+      </ResizablePanel>
+    </>
+  );
+}
+
+export function EditorArea({ className }: EditorAreaProps) {
+  const splitRoot = useEditorStore((s) => s.splitRoot);
+  const hasAnyTabs = useEditorStore((s) => {
+    for (const group of s.groups.values()) {
+      if (group.openTabs.length > 0) return true;
+    }
+    return false;
+  });
+
+  if (!hasAnyTabs) {
     return (
       <div className={cn("relative flex h-full flex-col bg-background", className)}>
         <FlickeringGrid
@@ -46,34 +67,7 @@ export function EditorArea({ className }: EditorAreaProps) {
 
   return (
     <div className={cn("flex h-full flex-col bg-background", className)}>
-      <TabBar />
-      <div className="flex-1 overflow-hidden">
-        {activeTab?.type === "settings" ? (
-          <SettingsEditor />
-        ) : activeTab?.type === "diff" ? (
-          <DiffEditor key={activeTab.id} tabId={activeTab.id} />
-        ) : activeTab?.type === "browser" ? (
-          <SimpleBrowser
-            key={activeTab.id}
-            initialUrl={activeTab.id.slice(BROWSER_TAB_PREFIX.length)}
-          />
-        ) : activeTab?.type === "database" ? (
-          <DatabaseViewer
-            key={activeTab.id}
-            tabId={activeTab.id}
-            filePath={activeTab.id.slice(DATABASE_TAB_PREFIX.length)}
-          />
-        ) : activeTab?.type === "preview" ? (
-          <DocumentViewer
-            key={activeTab.id}
-            filePath={activeTab.id.slice(PREVIEW_TAB_PREFIX.length)}
-          />
-        ) : activeTab && isImageFile(activeTab.id) ? (
-          <ImagePreview filePath={activeTab.id} />
-        ) : activeTabId ? (
-          <CodeMirrorEditor key={activeTabId} filePath={activeTabId} />
-        ) : null}
-      </div>
+      <SplitNodeView node={splitRoot} />
     </div>
   );
 }

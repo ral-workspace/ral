@@ -5,6 +5,16 @@ export interface OpenTab {
   type: "file" | "settings" | "browser" | "diff" | "preview" | "database";
 }
 
+export interface EditorGroup {
+  id: string;
+  openTabs: OpenTab[];
+  activeTabId: string | null;
+}
+
+export type SplitNode =
+  | { type: "leaf"; groupId: string }
+  | { type: "branch"; direction: "horizontal" | "vertical"; children: SplitNode[] };
+
 export const SETTINGS_TAB_ID = "helm:settings";
 export const BROWSER_TAB_PREFIX = "helm:browser:";
 export const DIFF_TAB_PREFIX = "helm:diff:";

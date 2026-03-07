@@ -9,6 +9,7 @@ import {
 } from "@helm/ui";
 import { useWorkspaceStore, useLayoutStore, useEditorStore, useSettingsStore, useIconThemeStore, useACPStore } from "./stores";
 import { invalidateBufferCache } from "./hooks/use-codemirror";
+import { findGroupIds } from "./stores/editor-store";
 import { Sidebar } from "./components/sidebar";
 import { EditorArea } from "./components/editor-area";
 import { TerminalPanel, AiPanel } from "./components/panel";
@@ -21,7 +22,12 @@ function App() {
   const showSidebar = useLayoutStore((s) => s.showSidebar);
   const showBottomPanel = useLayoutStore((s) => s.showBottomPanel);
   const showSidePanel = useLayoutStore((s) => s.showSidePanel);
-  const hasOpenTabs = useEditorStore((s) => s.openTabs.length > 0);
+  const hasOpenTabs = useEditorStore((s) => {
+    for (const group of s.groups.values()) {
+      if (group.openTabs.length > 0) return true;
+    }
+    return false;
+  });
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -29,6 +35,7 @@ function App() {
     useSettingsStore.getState()._initSettings();
     useIconThemeStore.getState()._initIconTheme();
     useACPStore.getState()._init();
+    useEditorStore.getState()._restoreLayout();
   }, []);
 
   // File watcher: start/stop on projectPath change
@@ -65,6 +72,22 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
         useLayoutStore.getState().setSidebarView("search");
+      }
+      // Cmd+\ to split editor right
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        const { activeGroupId, splitGroup } = useEditorStore.getState();
+        splitGroup(activeGroupId, "horizontal");
+      }
+      // Cmd+1/2/3 to focus pane by index
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && ["1", "2", "3", "4", "5", "6", "7", "8", "9"].includes(e.key)) {
+        const idx = parseInt(e.key) - 1;
+        const { splitRoot, setActiveGroup } = useEditorStore.getState();
+        const groupIds = findGroupIds(splitRoot);
+        if (groupIds.length > 1 && idx < groupIds.length) {
+          e.preventDefault();
+          setActiveGroup(groupIds[idx]);
+        }
       }
     };
     window.addEventListener("keydown", handler);

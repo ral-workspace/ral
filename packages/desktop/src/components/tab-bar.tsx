@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { cn } from "@helm/ui";
 import { IconX, IconSettings, IconWorldWww, IconFileDiff, IconPresentation, IconTable } from "@tabler/icons-react";
 import { useEditorStore, useWorkspaceStore } from "../stores";
-import type { OpenTab } from "../types/editor";
+import type { OpenTab, EditorGroup } from "../types/editor";
 import { FileIcon } from "./file-icon";
 import { type NativeMenuItem, showNativeContextMenu } from "../lib/native-context-menu";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -38,22 +38,32 @@ interface DropTarget {
   side: DropSide;
 }
 
-export function TabBar() {
-  const openTabs = useEditorStore((s) => s.openTabs);
-  const activeTabId = useEditorStore((s) => s.activeTabId);
+interface TabBarProps {
+  groupId: string;
+}
+
+export function TabBar({ groupId }: TabBarProps) {
+  const group = useEditorStore(
+    useCallback((s) => s.groups.get(groupId), [groupId]),
+  ) as EditorGroup | undefined;
   const dirtyFiles = useEditorStore((s) => s.dirtyFiles);
-  const selectTab = useEditorStore((s) => s.selectTab);
-  const closeTab = useEditorStore((s) => s.closeTab);
-  const closeOtherTabs = useEditorStore((s) => s.closeOtherTabs);
-  const closeTabsToTheRight = useEditorStore((s) => s.closeTabsToTheRight);
-  const closeSavedTabs = useEditorStore((s) => s.closeSavedTabs);
-  const closeAllTabs = useEditorStore((s) => s.closeAllTabs);
-  const pinTab = useEditorStore((s) => s.pinTab);
-  const moveTab = useEditorStore((s) => s.moveTab);
+  const selectTabInGroup = useEditorStore((s) => s.selectTabInGroup);
+  const closeTabInGroup = useEditorStore((s) => s.closeTabInGroup);
+  const closeOtherTabsInGroup = useEditorStore((s) => s.closeOtherTabsInGroup);
+  const closeTabsToTheRightInGroup = useEditorStore((s) => s.closeTabsToTheRightInGroup);
+  const closeSavedTabsInGroup = useEditorStore((s) => s.closeSavedTabsInGroup);
+  const closeAllTabsInGroup = useEditorStore((s) => s.closeAllTabsInGroup);
+  const pinTabInGroup = useEditorStore((s) => s.pinTabInGroup);
+  const moveTabInGroup = useEditorStore((s) => s.moveTabInGroup);
+  const moveTabToGroup = useEditorStore((s) => s.moveTabToGroup);
+  const splitGroup = useEditorStore((s) => s.splitGroup);
 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const tabRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+  const openTabs = group?.openTabs ?? [];
+  const activeTabId = group?.activeTabId ?? null;
 
   const getDropSide = useCallback((e: React.DragEvent, tab: HTMLElement): DropSide => {
     const rect = tab.getBoundingClientRect();
@@ -61,17 +71,17 @@ export function TabBar() {
   }, []);
 
   const handleDragStart = useCallback(
-    (e: React.DragEvent, index: number) => {
+    (e: React.DragEvent, index: number, tabId: string) => {
       setDragIndex(index);
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", String(index));
-      // Use the tab element itself as drag image (like VS Code)
+      e.dataTransfer.setData("application/helm-tab", JSON.stringify({ groupId, tabId }));
       const tab = tabRefs.current.get(index);
       if (tab) {
         e.dataTransfer.setDragImage(tab, 0, 0);
       }
     },
-    [],
+    [groupId],
   );
 
   const handleDragOver = useCallback(
@@ -87,23 +97,37 @@ export function TabBar() {
   const handleDrop = useCallback(
     (e: React.DragEvent, index: number) => {
       e.preventDefault();
-      if (dragIndex === null) return;
 
       const side = getDropSide(e, e.currentTarget as HTMLElement);
-      // Compute target index based on which side of the tab we dropped on
       let targetIndex = side === "right" ? index + 1 : index;
-      // Adjust for the removed source element
+
+      // Check for cross-group tab transfer
+      const helmTabData = e.dataTransfer.getData("application/helm-tab");
+      if (helmTabData) {
+        try {
+          const { groupId: sourceGroupId, tabId } = JSON.parse(helmTabData);
+          if (sourceGroupId !== groupId) {
+            moveTabToGroup(sourceGroupId, groupId, tabId, targetIndex);
+            setDragIndex(null);
+            setDropTarget(null);
+            return;
+          }
+        } catch { /* ignore parse errors */ }
+      }
+
+      // Same-group reorder
+      if (dragIndex === null) return;
       if (dragIndex < targetIndex) {
         targetIndex--;
       }
 
       if (dragIndex !== targetIndex) {
-        moveTab(dragIndex, targetIndex);
+        moveTabInGroup(groupId, dragIndex, targetIndex);
       }
       setDragIndex(null);
       setDropTarget(null);
     },
-    [dragIndex, moveTab, getDropSide],
+    [dragIndex, groupId, moveTabInGroup, moveTabToGroup, getDropSide],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -112,7 +136,6 @@ export function TabBar() {
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear if leaving the tab bar entirely
     const related = e.relatedTarget as HTMLElement | null;
     if (!related || !e.currentTarget.contains(related)) {
       setDropTarget(null);
@@ -131,6 +154,9 @@ export function TabBar() {
         { type: "item", id: "close-right", label: "Close to the Right", disabled: isLast },
         { type: "item", id: "close-saved", label: "Close Saved" },
         { type: "item", id: "close-all", label: "Close All" },
+        { type: "separator" },
+        { type: "item", id: "split-right", label: "Split Right" },
+        { type: "item", id: "split-down", label: "Split Down" },
       ];
 
       if (tab.type === "file") {
@@ -145,19 +171,25 @@ export function TabBar() {
         if (!actionId) return;
         switch (actionId) {
           case "close":
-            closeTab(tab.id);
+            closeTabInGroup(groupId, tab.id);
             break;
           case "close-others":
-            closeOtherTabs(tab.id);
+            closeOtherTabsInGroup(groupId, tab.id);
             break;
           case "close-right":
-            closeTabsToTheRight(tab.id);
+            closeTabsToTheRightInGroup(groupId, tab.id);
             break;
           case "close-saved":
-            closeSavedTabs();
+            closeSavedTabsInGroup(groupId);
             break;
           case "close-all":
-            closeAllTabs();
+            closeAllTabsInGroup(groupId);
+            break;
+          case "split-right":
+            splitGroup(groupId, "horizontal");
+            break;
+          case "split-down":
+            splitGroup(groupId, "vertical");
             break;
           case "copy-path":
             writeText(tab.id);
@@ -173,18 +205,17 @@ export function TabBar() {
         }
       });
     },
-    [openTabs, closeTab, closeOtherTabs, closeTabsToTheRight, closeSavedTabs, closeAllTabs],
+    [openTabs, groupId, closeTabInGroup, closeOtherTabsInGroup, closeTabsToTheRightInGroup, closeSavedTabsInGroup, closeAllTabsInGroup, splitGroup],
   );
 
-  // Middle-click to close tab (like VS Code)
   const handleAuxClick = useCallback(
     (e: React.MouseEvent, tabId: string) => {
       if (e.button === 1) {
         e.preventDefault();
-        closeTab(tabId);
+        closeTabInGroup(groupId, tabId);
       }
     },
-    [closeTab],
+    [groupId, closeTabInGroup],
   );
 
   return (
@@ -205,12 +236,12 @@ export function TabBar() {
               else tabRefs.current.delete(index);
             }}
             draggable
-            onDragStart={(e) => handleDragStart(e, index)}
+            onDragStart={(e) => handleDragStart(e, index, tab.id)}
             onDragOver={(e) => handleDragOver(e, index)}
             onDrop={(e) => handleDrop(e, index)}
             onDragEnd={handleDragEnd}
-            onClick={() => selectTab(tab.id)}
-            onDoubleClick={() => pinTab(tab.id)}
+            onClick={() => selectTabInGroup(groupId, tab.id)}
+            onDoubleClick={() => pinTabInGroup(groupId, tab.id)}
             onContextMenu={(e) => handleContextMenu(e, tab, index)}
             onAuxClick={(e) => handleAuxClick(e, tab.id)}
             className={cn(
@@ -221,11 +252,9 @@ export function TabBar() {
               isDragging && "opacity-40",
             )}
           >
-            {/* Drop indicator - left */}
             {showLeftIndicator && (
               <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary z-20" />
             )}
-            {/* Drop indicator - right */}
             {showRightIndicator && (
               <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-primary z-20" />
             )}
@@ -235,7 +264,7 @@ export function TabBar() {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  closeTab(tab.id);
+                  closeTabInGroup(groupId, tab.id);
                 }}
                 className="ml-1 flex size-4 items-center justify-center rounded group-hover:opacity-100"
               >
@@ -246,7 +275,7 @@ export function TabBar() {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  closeTab(tab.id);
+                  closeTabInGroup(groupId, tab.id);
                 }}
                 className="ml-1 flex size-4 items-center justify-center rounded opacity-0 hover:bg-foreground/10 group-hover:opacity-100"
               >
@@ -256,7 +285,6 @@ export function TabBar() {
           </button>
         );
       })}
-      {/* Border line behind tabs — active tab covers it */}
       <div className="absolute bottom-0 left-0 right-0 z-0 h-px bg-border" />
     </div>
   );
