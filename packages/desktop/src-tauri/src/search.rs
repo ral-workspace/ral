@@ -169,15 +169,101 @@ pub(crate) fn search_text(
     Ok(results)
 }
 
+/// Fuzzy match score: returns Some(score) if query chars appear in order in target.
+/// Higher score = better match. Bonuses for consecutive chars, word boundaries, filename matches.
+fn fuzzy_score(query: &str, target: &str) -> Option<i64> {
+    if query.is_empty() {
+        return Some(0);
+    }
+
+    let query_chars: Vec<char> = query.chars().collect();
+    let target_chars: Vec<char> = target.chars().collect();
+    let target_lower: Vec<char> = target.to_lowercase().chars().collect();
+    let query_lower: Vec<char> = query.to_lowercase().chars().collect();
+
+    // Check if all query chars exist in order
+    let mut qi = 0;
+    for &tc in &target_lower {
+        if qi < query_lower.len() && tc == query_lower[qi] {
+            qi += 1;
+        }
+    }
+    if qi < query_lower.len() {
+        return None;
+    }
+
+    // Score the match
+    let mut score: i64 = 0;
+    let mut qi = 0;
+    let mut prev_match = false;
+    let mut consecutive = 0i64;
+
+    // Bonus for matching in filename (after last '/')
+    let filename_start = target.rfind('/').map(|i| i + 1).unwrap_or(0);
+
+    for (ti, &tc) in target_lower.iter().enumerate() {
+        if qi < query_lower.len() && tc == query_lower[qi] {
+            // Base match score
+            score += 1;
+
+            // Consecutive match bonus
+            if prev_match {
+                consecutive += 1;
+                score += consecutive.min(5) * 3;
+            } else {
+                consecutive = 0;
+            }
+
+            // Exact case match bonus
+            if qi < query_chars.len() && target_chars[ti] == query_chars[qi] {
+                score += 1;
+            }
+
+            // Word boundary bonus (start of word, after separator, camelCase)
+            if ti == 0 || ti == filename_start {
+                score += 10;
+            } else if ti > 0 {
+                let prev = target_chars[ti - 1];
+                if prev == '/' || prev == '\\' || prev == '.' || prev == '-' || prev == '_' {
+                    score += 5;
+                } else if prev.is_lowercase() && target_chars[ti].is_uppercase() {
+                    score += 3;
+                }
+            }
+
+            // Filename match bonus (matching in the file name part is more valuable)
+            if ti >= filename_start {
+                score += 3;
+            }
+
+            prev_match = true;
+            qi += 1;
+        } else {
+            prev_match = false;
+            consecutive = 0;
+        }
+    }
+
+    // Bonus for shorter paths (prefer less nested files)
+    let depth = target.chars().filter(|&c| c == '/').count() as i64;
+    score -= depth;
+
+    // Bonus for shorter filenames
+    let filename_len = target.len() - filename_start;
+    if filename_len > 0 {
+        score -= (filename_len as i64) / 10;
+    }
+
+    Some(score)
+}
+
 #[tauri::command]
 pub(crate) fn search_files(
     root_path: String,
     query: String,
     max_results: Option<usize>,
 ) -> Result<Vec<String>, String> {
-    let max = max_results.unwrap_or(100);
-    let query_lower = query.to_lowercase();
-    let mut results = Vec::new();
+    let max = max_results.unwrap_or(512);
 
     let walker = WalkBuilder::new(&root_path)
         .hidden(true)
@@ -186,10 +272,10 @@ pub(crate) fn search_files(
 
     let root = std::path::Path::new(&root_path);
 
+    // Collect all matches with scores
+    let mut scored: Vec<(String, i64)> = Vec::new();
+
     for entry in walker {
-        if results.len() >= max {
-            break;
-        }
         let entry = match entry {
             Ok(e) => e,
             Err(_) => continue,
@@ -202,10 +288,19 @@ pub(crate) fn search_files(
         let relative = path.strip_prefix(root).unwrap_or(path);
         let rel = relative.to_string_lossy();
 
-        if rel.to_lowercase().contains(&query_lower) {
-            results.push(rel.to_string());
+        if query.is_empty() {
+            scored.push((rel.to_string(), 0));
+            if scored.len() >= max {
+                break;
+            }
+        } else if let Some(score) = fuzzy_score(&query, &rel) {
+            scored.push((rel.to_string(), score));
         }
     }
 
-    Ok(results)
+    // Sort by score descending
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    scored.truncate(max);
+
+    Ok(scored.into_iter().map(|(path, _)| path).collect())
 }

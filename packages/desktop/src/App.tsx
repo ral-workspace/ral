@@ -16,6 +16,7 @@ import { TerminalPanel, AiPanel } from "./components/panel";
 import { WelcomeScreen } from "./components/welcome-screen";
 import { Titlebar } from "./components/titlebar";
 import { CommandPalette } from "./components/command-palette";
+import { QuickOpen } from "./components/quick-open";
 
 function App() {
   const projectPath = useWorkspaceStore((s) => s.projectPath);
@@ -29,6 +30,7 @@ function App() {
     return false;
   });
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [quickOpenOpen, setQuickOpenOpen] = useState(false);
 
   useEffect(() => {
     useWorkspaceStore.getState()._loadRecentProjects();
@@ -68,6 +70,11 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
         setCommandPaletteOpen((v) => !v);
+      }
+      // Cmd+P to open Quick Open
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        setQuickOpenOpen((v) => !v);
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
@@ -152,6 +159,10 @@ function App() {
       <CommandPalette
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
+      />
+      <QuickOpen
+        open={quickOpenOpen}
+        onClose={() => setQuickOpenOpen(false)}
       />
     </div>
     </TooltipProvider>
