@@ -107,27 +107,31 @@ export const useACPStore = create<ACPState>((set, get) => ({
       return;
     }
 
-    // Agent started successfully — initialize session
-    const sessionId = generateUUID();
+    // Agent started successfully — reset state (session created on first message)
     set({
-      sessionId,
+      sessionId: null,
       cwd,
       messages: [],
       isViewingHistory: false,
     });
-
-    persist({
-      type: "session_meta",
-      sessionId,
-      timestamp: new Date().toISOString(),
-      projectPath: cwd,
-      agentPath: "claude-agent-acp",
-    }, cwd);
   },
 
   sendPrompt: async (text) => {
     if (get().isPrompting) return;
-    const sessionId = get().sessionId;
+
+    // Lazy session creation: only persist when user actually sends a message
+    let sessionId = get().sessionId;
+    if (!sessionId) {
+      sessionId = generateUUID();
+      set({ sessionId });
+      persist({
+        type: "session_meta",
+        sessionId,
+        timestamp: new Date().toISOString(),
+        projectPath: get().cwd,
+        agentPath: "claude-agent-acp",
+      }, get().cwd);
+    }
 
     const userMsg: ChatMessage = {
       id: generateUUID(),
@@ -142,14 +146,12 @@ export const useACPStore = create<ACPState>((set, get) => ({
     }));
 
     // Persist user message
-    if (sessionId) {
-      persist({
-        type: "chat_message",
-        sessionId,
-        timestamp: new Date().toISOString(),
-        message: userMsg,
-      }, get().cwd);
-    }
+    persist({
+      type: "chat_message",
+      sessionId,
+      timestamp: new Date().toISOString(),
+      message: userMsg,
+    }, get().cwd);
 
     // Wait for session to be ready (prewarm may still be in progress)
     if (!get().sessionReady) {
