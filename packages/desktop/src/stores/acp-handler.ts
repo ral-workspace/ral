@@ -3,22 +3,18 @@ import {
   type SessionRecord,
 } from "../services/chat-history";
 import type {
-  ACPMessage,
-  ACPToolCall,
-  ACPToolCallContent,
+  ChatMessage,
+  ToolCallPart,
   PlanEntry,
   ConfigOption,
   AvailableCommand,
 } from "./acp-types";
+import { useMcpClientStore } from "./mcp-client-store";
 
-// Re-export ACPState type for handler usage
-// (defined in acp-store.ts to avoid circular deps)
 export interface ACPStateLike {
   sessionId: string | null;
   cwd: string | null;
-  messages: ACPMessage[];
-  toolCalls: Record<string, ACPToolCall>;
-  timeline: { kind: string; [key: string]: unknown }[];
+  messages: ChatMessage[];
   isPrompting: boolean;
 }
 
@@ -37,6 +33,72 @@ export function persist(record: SessionRecord, cwd: string | null) {
 // Track whether we need to persist the current agent message
 let pendingAgentPersist: ReturnType<typeof setTimeout> | null = null;
 
+// ── Helpers ──
+
+/** Get last agent message or create one and push it */
+function ensureAgentMessage(messages: ChatMessage[]): ChatMessage {
+  const last = messages[messages.length - 1];
+  if (last && last.role === "agent") return last;
+  const msg: ChatMessage = {
+    id: generateUUID(),
+    role: "agent",
+    parts: [],
+    timestamp: Date.now(),
+  };
+  messages.push(msg);
+  return msg;
+}
+
+/** Append text to the last text/reasoning part, or push a new one */
+function appendStreamingText(
+  messages: ChatMessage[],
+  text: string,
+  partType: "text" | "reasoning",
+): ChatMessage[] {
+  const updated = [...messages];
+  const lastMsg = updated[updated.length - 1];
+
+  if (lastMsg && lastMsg.role === "agent") {
+    const updatedMsg = { ...lastMsg, parts: [...lastMsg.parts] };
+    const lastPart = updatedMsg.parts[updatedMsg.parts.length - 1];
+
+    if (lastPart && lastPart.type === partType) {
+      updatedMsg.parts[updatedMsg.parts.length - 1] = {
+        ...lastPart,
+        text: lastPart.text + text,
+      };
+    } else {
+      updatedMsg.parts.push({ type: partType, text });
+    }
+    updated[updated.length - 1] = updatedMsg;
+  } else {
+    updated.push({
+      id: generateUUID(),
+      role: "agent",
+      parts: [{ type: partType, text }],
+      timestamp: Date.now(),
+    });
+  }
+
+  return updated;
+}
+
+/** Persist the last agent message as a single chat_message record */
+function persistLastAgentMessage(state: ACPStateLike) {
+  const lastMsg = state.messages[state.messages.length - 1];
+  if (lastMsg && lastMsg.role === "agent" && state.sessionId) {
+    persist(
+      {
+        type: "chat_message",
+        sessionId: state.sessionId,
+        timestamp: new Date().toISOString(),
+        message: lastMsg,
+      },
+      state.cwd,
+    );
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function handleSessionUpdate(payload: any, set: any, get: any) {
   const update = payload?.update;
@@ -44,174 +106,145 @@ export function handleSessionUpdate(payload: any, set: any, get: any) {
 
   const updateType: string = update.sessionUpdate;
 
-  // Handle agent text streaming
+  // ── Agent text streaming ──
   if (updateType === "agent_message_chunk") {
     const text = update.content?.text;
     if (text == null) return;
 
-    set((state: ACPStateLike) => {
-      const messages = [...state.messages];
-      const lastMsg = messages[messages.length - 1];
+    set((state: ACPStateLike) => ({
+      messages: appendStreamingText(state.messages, text, "text"),
+    }));
 
-      if (lastMsg && lastMsg.role === "agent") {
-        // Check if the last timeline entry is for this message (append case)
-        const lastTimeline = state.timeline[state.timeline.length - 1];
-        const isAppend = lastTimeline?.kind === "message" &&
-          (lastTimeline as { messageIndex?: number }).messageIndex === messages.length - 1;
-
-        messages[messages.length - 1] = {
-          ...lastMsg,
-          content: lastMsg.content + text,
-        };
-
-        if (isAppend) {
-          return { messages };
-        }
-        // Last timeline entry was a tool call — this is a new message segment
-        const newMsg: ACPMessage = { role: "agent", content: text, timestamp: Date.now() };
-        messages[messages.length - 1] = lastMsg; // restore
-        messages.push(newMsg);
-        return {
-          messages,
-          timeline: [...state.timeline, { kind: "message" as const, messageIndex: messages.length - 1 }],
-        };
-      } else {
-        messages.push({
-          role: "agent",
-          content: text,
-          timestamp: Date.now(),
-        });
-        return {
-          messages,
-          timeline: [...state.timeline, { kind: "message" as const, messageIndex: messages.length - 1 }],
-        };
-      }
-    });
-
-    // Debounce agent message persistence (persist when streaming pauses)
+    // Debounce agent message persistence
     if (pendingAgentPersist) clearTimeout(pendingAgentPersist);
     pendingAgentPersist = setTimeout(() => {
       const state = get() as ACPStateLike;
-      const lastMsg = state.messages[state.messages.length - 1];
-      if (lastMsg && lastMsg.role === "agent" && state.sessionId && !state.isPrompting) {
-        persist({
-          type: "agent",
-          sessionId: state.sessionId,
-          timestamp: new Date().toISOString(),
-          uuid: generateUUID(),
-          message: { role: "agent", content: lastMsg.content },
-        }, state.cwd);
+      if (!state.isPrompting) {
+        persistLastAgentMessage(state);
         pendingAgentPersist = null;
       }
     }, 500);
   }
 
-  // Handle new tool call
+  // ── Agent thought streaming ──
+  if (updateType === "agent_thought_chunk") {
+    const text = update.content?.text;
+    if (text == null) return;
+
+    set((state: ACPStateLike) => ({
+      messages: appendStreamingText(state.messages, text, "reasoning"),
+    }));
+  }
+
+  // ── New tool call ──
   if (updateType === "tool_call") {
     const toolCallId = update.toolCallId;
     if (!toolCallId) return;
-    const tc: ACPToolCall = {
+
+    const mcpToolName: string | undefined = update._meta?.claudeCode?.toolName;
+    const toolUi = mcpToolName
+      ? useMcpClientStore.getState().getToolUi(mcpToolName)
+      : null;
+
+    const toolCallPart: ToolCallPart = {
+      type: "tool-call",
       toolCallId,
       title: update.title ?? "Tool Call",
       kind: update.kind ?? "other",
       status: update.status ?? "pending",
       content: update.content ?? [],
       locations: update.locations ?? [],
+      ...(mcpToolName && { mcpToolName }),
+      ...(toolUi && { uiResourceUri: toolUi.resourceUri }),
+      ...(update.rawInput && { rawInput: update.rawInput }),
     };
 
     set((state: ACPStateLike) => {
-      const toolCalls = { ...state.toolCalls };
-      toolCalls[toolCallId] = tc;
-      return {
-        toolCalls,
-        timeline: [...state.timeline, { kind: "tool_call" as const, toolCallId }],
-      };
+      const messages = [...state.messages];
+      const agentMsg = ensureAgentMessage(messages);
+      const idx = messages.indexOf(agentMsg);
+      messages[idx] = { ...agentMsg, parts: [...agentMsg.parts, toolCallPart] };
+      return { messages };
     });
-
-    const state = get() as ACPStateLike;
-    if (state.sessionId) {
-      persist({
-        type: "tool_call",
-        sessionId: state.sessionId,
-        timestamp: new Date().toISOString(),
-        toolCall: tc,
-      }, state.cwd);
-    }
   }
 
-  // Handle tool call update
+  // ── Tool call update ──
   if (updateType === "tool_call_update") {
     const toolCallId = update.toolCallId;
     if (!toolCallId) return;
+
     set((state: ACPStateLike) => {
-      const toolCalls = { ...state.toolCalls };
-      const existing = toolCalls[toolCallId];
+      // Search from the end for the tool-call part
+      const messages = [...state.messages];
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (msg.role !== "agent") continue;
 
-      // Accumulate content across updates so earlier data isn't lost
-      let mergedContent: ACPToolCallContent[];
-      if (update.content && existing?.content?.length) {
-        mergedContent = [...existing.content, ...update.content];
-      } else {
-        mergedContent = update.content ?? existing?.content ?? [];
+        const partIdx = msg.parts.findIndex(
+          (p) => p.type === "tool-call" && p.toolCallId === toolCallId,
+        );
+        if (partIdx === -1) continue;
+
+        const parts = [...msg.parts];
+        const existing = parts[partIdx] as ToolCallPart;
+
+        // Accumulate content
+        let mergedContent = existing.content;
+        if (update.content && existing.content.length) {
+          mergedContent = [...existing.content, ...update.content];
+        } else if (update.content) {
+          mergedContent = update.content;
+        }
+
+        parts[partIdx] = {
+          ...existing,
+          title: update.title ?? existing.title,
+          kind: update.kind ?? existing.kind,
+          status: update.status ?? existing.status,
+          content: mergedContent,
+          locations: update.locations ?? existing.locations,
+          rawInput: update.rawInput ?? existing.rawInput,
+          rawOutput: update.rawOutput ?? existing.rawOutput,
+        };
+
+        messages[i] = { ...msg, parts };
+        return { messages };
       }
-
-      toolCalls[toolCallId] = {
-        toolCallId,
-        title: update.title ?? existing?.title ?? "Tool Call",
-        kind: update.kind ?? existing?.kind ?? "other",
-        status: update.status ?? existing?.status ?? "pending",
-        content: mergedContent,
-        locations: update.locations ?? existing?.locations ?? [],
-      };
-      return { toolCalls };
+      return {};
     });
-
-    // Persist completed tool calls (includes final terminal output)
-    const newStatus = update.status ?? "pending";
-    if (newStatus === "completed" || newStatus === "failed") {
-      const state = get() as ACPStateLike;
-      const tc = state.toolCalls[toolCallId];
-      if (tc && state.sessionId) {
-        persist({
-          type: "tool_call",
-          sessionId: state.sessionId,
-          timestamp: new Date().toISOString(),
-          toolCall: tc,
-        }, state.cwd);
-      }
-    }
   }
 
-  // Handle plan updates (complete replacement each time)
+  // ── Plan updates ──
   if (updateType === "plan") {
-    const entries: PlanEntry[] = (update.entries ?? []).map((e: Record<string, unknown>) => ({
-      content: String(e.content ?? ""),
-      priority: (e.priority as PlanEntry["priority"]) ?? "medium",
-      status: (e.status as PlanEntry["status"]) ?? "pending",
-    }));
+    const entries: PlanEntry[] = (update.entries ?? []).map(
+      (e: Record<string, unknown>) => ({
+        content: String(e.content ?? ""),
+        priority: (e.priority as PlanEntry["priority"]) ?? "medium",
+        status: (e.status as PlanEntry["status"]) ?? "pending",
+      }),
+    );
 
     set((state: ACPStateLike) => {
-      // Add plan to timeline only once (replace if exists)
-      const hasPlanEntry = state.timeline.some((t) => t.kind === "plan");
-      return {
-        plan: entries,
-        timeline: hasPlanEntry ? state.timeline : [...state.timeline, { kind: "plan" as const }],
-      };
-    });
+      const messages = [...state.messages];
+      const agentMsg = ensureAgentMessage(messages);
+      const idx = messages.indexOf(agentMsg);
+      const parts = [...agentMsg.parts];
 
-    // Persist plan
-    const state = get() as ACPStateLike;
-    if (state.sessionId) {
-      persist({
-        type: "plan",
-        sessionId: state.sessionId,
-        timestamp: new Date().toISOString(),
-        entries,
-      }, state.cwd);
-    }
+      const planIdx = parts.findIndex((p) => p.type === "plan");
+      const planPart = { type: "plan" as const, entries };
+
+      if (planIdx !== -1) {
+        parts[planIdx] = planPart;
+      } else {
+        parts.push(planPart);
+      }
+
+      messages[idx] = { ...agentMsg, parts };
+      return { messages };
+    });
   }
 
-  // Handle config options update from agent
+  // ── Config options update ──
   if (updateType === "config_option_update") {
     const options = update.configOptions ?? update.config_options;
     if (Array.isArray(options)) {
@@ -219,7 +252,7 @@ export function handleSessionUpdate(payload: any, set: any, get: any) {
     }
   }
 
-  // Handle available commands update from agent
+  // ── Available commands update ──
   if (updateType === "available_commands_update") {
     const commands = update.availableCommands;
     if (Array.isArray(commands)) {
@@ -227,22 +260,12 @@ export function handleSessionUpdate(payload: any, set: any, get: any) {
     }
   }
 
-  // When agent turn ends, persist the final agent message
+  // ── Agent turn end — persist final message ──
   if (updateType === "agent_turn_end" || updateType === "prompt_end") {
     if (pendingAgentPersist) {
       clearTimeout(pendingAgentPersist);
       pendingAgentPersist = null;
     }
-    const state = get() as ACPStateLike;
-    const lastMsg = state.messages[state.messages.length - 1];
-    if (lastMsg && lastMsg.role === "agent" && state.sessionId) {
-      persist({
-        type: "agent",
-        sessionId: state.sessionId,
-        timestamp: new Date().toISOString(),
-        uuid: generateUUID(),
-        message: { role: "agent", content: lastMsg.content },
-      }, state.cwd);
-    }
+    persistLastAgentMessage(get() as ACPStateLike);
   }
 }

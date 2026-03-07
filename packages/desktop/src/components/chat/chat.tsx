@@ -16,14 +16,11 @@ export function AiChat({ className }: AiChatProps) {
   const {
     connected,
     messages,
-    toolCalls,
-    timeline,
     isPrompting,
     isAuthenticating,
     isViewingHistory,
     sessions,
     sessionId,
-    plan,
     configOptions,
     startAgent,
     sendPrompt,
@@ -70,8 +67,9 @@ export function AiChat({ className }: AiChatProps) {
   }, [projectPath, loadSessions]);
 
   const firstUserMsg = messages.find((m) => m.role === "user");
-  const currentLabel = firstUserMsg
-    ? firstUserMsg.content.slice(0, 40)
+  const firstUserText = firstUserMsg?.parts.find((p) => p.type === "text");
+  const currentLabel = firstUserText && "text" in firstUserText
+    ? firstUserText.text.slice(0, 40)
     : "New Chat";
 
   return (
@@ -92,9 +90,6 @@ export function AiChat({ className }: AiChatProps) {
         >
           <MessageList
             messages={messages}
-            toolCalls={toolCalls}
-            timeline={timeline}
-            plan={plan}
             isPrompting={isPrompting}
             isAuthenticating={isAuthenticating}
             endRef={endRef}

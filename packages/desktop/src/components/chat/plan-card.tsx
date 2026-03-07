@@ -1,8 +1,9 @@
+import { memo } from "react";
 import { cn } from "@helm/ui";
 import { IconCheck, IconLoader2, IconCircle } from "@tabler/icons-react";
 import type { PlanEntry } from "../../stores/acp-types";
 
-export function PlanCard({ entries }: { entries: PlanEntry[] }) {
+export const PlanCard = memo(function PlanCard({ entries }: { entries: PlanEntry[] }) {
   return (
     <div className="flex gap-2.5">
       <div className="flex h-[15px] w-2.5 shrink-0 items-center justify-center">
@@ -32,4 +33,4 @@ export function PlanCard({ entries }: { entries: PlanEntry[] }) {
       </div>
     </div>
   );
-}
+});

@@ -1,8 +1,46 @@
-export interface ACPMessage {
+// ── Message Parts ──
+
+export interface TextPart {
+  type: "text";
+  text: string;
+}
+
+export interface ReasoningPart {
+  type: "reasoning";
+  text: string;
+}
+
+export interface ToolCallPart {
+  type: "tool-call";
+  toolCallId: string;
+  title: string;
+  kind: string;
+  status: "pending" | "in_progress" | "completed" | "failed";
+  content: ACPToolCallContent[];
+  locations: ACPToolCallLocation[];
+  mcpToolName?: string;
+  uiResourceUri?: string;
+  rawInput?: Record<string, unknown>;
+  rawOutput?: unknown;
+}
+
+export interface PlanPart {
+  type: "plan";
+  entries: PlanEntry[];
+}
+
+export type ChatPart = TextPart | ReasoningPart | ToolCallPart | PlanPart;
+
+// ── Chat Message ──
+
+export interface ChatMessage {
+  id: string;
   role: "user" | "agent";
-  content: string;
+  parts: ChatPart[];
   timestamp: number;
 }
+
+// ── Shared Sub-types ──
 
 export interface ACPDiff {
   path: string;
@@ -20,25 +58,13 @@ export type ACPToolCallContent =
   | { type: "diff"; path: string; oldText: string | null; newText: string }
   | { type: "terminal"; terminalId: string; command?: string; output?: string };
 
-export interface ACPToolCall {
-  toolCallId: string;
-  title: string;
-  kind: string;
-  status: "pending" | "in_progress" | "completed" | "failed";
-  content: ACPToolCallContent[];
-  locations: ACPToolCallLocation[];
-}
-
-export type TimelineEntry =
-  | { kind: "message"; messageIndex: number }
-  | { kind: "tool_call"; toolCallId: string }
-  | { kind: "plan" };
-
 export interface PlanEntry {
   content: string;
   priority: "high" | "medium" | "low";
   status: "pending" | "in_progress" | "completed";
 }
+
+// ── Config & Commands ──
 
 export interface ConfigSelectOption {
   value: string;
@@ -69,6 +95,8 @@ export interface AvailableCommand {
     hint: string;
   };
 }
+
+// ── Permission ──
 
 export interface ACPPermissionOption {
   optionId: string;

@@ -5,7 +5,7 @@ const HELM_DIR = ".helm";
 const PROJECTS_DIR = "projects";
 
 export interface SessionRecord {
-  type: "session_meta" | "user" | "agent" | "tool_call" | "plan";
+  type: "session_meta" | "chat_message";
   sessionId: string;
   timestamp: string;
   [key: string]: unknown;
@@ -82,9 +82,12 @@ export async function listSessions(
         let agentSessionId: string | undefined;
         for (const line of lines) {
           const rec = JSON.parse(line) as SessionRecord;
-          if (rec.type === "user" && !preview) {
-            const msg = rec.message as { content: string } | undefined;
-            preview = msg?.content?.slice(0, 100) ?? "";
+          if (rec.type === "chat_message" && !preview) {
+            const msg = rec.message as { role: string; parts: { type: string; text?: string }[] } | undefined;
+            if (msg?.role === "user") {
+              const textPart = msg.parts.find((p) => p.type === "text");
+              preview = textPart?.text?.slice(0, 100) ?? "";
+            }
           }
           if (rec.type === "session_meta" && rec.agentSessionId) {
             agentSessionId = rec.agentSessionId as string;

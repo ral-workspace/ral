@@ -8,15 +8,19 @@ import {
 } from "../services/chat-history";
 import { handleSessionUpdate, persist } from "./acp-handler";
 import { useWorkspaceStore } from "./workspace-store";
+import { useMcpClientStore } from "./mcp-client-store";
 
 // Re-export all types for consumers
 export type {
-  ACPMessage,
+  ChatMessage,
+  ChatPart,
+  TextPart,
+  ReasoningPart,
+  ToolCallPart,
+  PlanPart,
   ACPDiff,
   ACPToolCallLocation,
   ACPToolCallContent,
-  ACPToolCall,
-  TimelineEntry,
   PlanEntry,
   ConfigSelectOption,
   ConfigSelectGroup,
@@ -27,10 +31,7 @@ export type {
 } from "./acp-types";
 
 import type {
-  ACPMessage,
-  ACPToolCall,
-  TimelineEntry,
-  PlanEntry,
+  ChatMessage,
   ConfigOption,
   ACPPermissionRequest,
   AvailableCommand,
@@ -42,16 +43,13 @@ interface ACPState {
   sessionId: string | null;
   agentSessionId: string | null;
   cwd: string | null;
-  messages: ACPMessage[];
-  toolCalls: Record<string, ACPToolCall>;
-  timeline: TimelineEntry[];
+  messages: ChatMessage[];
   pendingPermission: ACPPermissionRequest | null;
   isPrompting: boolean;
   isAuthenticating: boolean;
   agentInfo: Record<string, unknown> | null;
   sessions: SessionSummary[];
   isViewingHistory: boolean;
-  plan: PlanEntry[];
   configOptions: ConfigOption[];
   availableCommands: AvailableCommand[];
 
@@ -82,15 +80,12 @@ export const useACPStore = create<ACPState>((set, get) => ({
   agentSessionId: null,
   cwd: null,
   messages: [],
-  toolCalls: {},
-  timeline: [],
   pendingPermission: null,
   isPrompting: false,
   isAuthenticating: false,
   agentInfo: null,
   sessions: [],
   isViewingHistory: false,
-  plan: [],
   configOptions: [],
   availableCommands: [],
 
@@ -118,8 +113,6 @@ export const useACPStore = create<ACPState>((set, get) => ({
       sessionId,
       cwd,
       messages: [],
-      toolCalls: {},
-      timeline: [],
       isViewingHistory: false,
     });
 
@@ -136,26 +129,25 @@ export const useACPStore = create<ACPState>((set, get) => ({
     if (get().isPrompting) return;
     const sessionId = get().sessionId;
 
-    const userMsg: ACPMessage = {
+    const userMsg: ChatMessage = {
+      id: generateUUID(),
       role: "user",
-      content: text,
+      parts: [{ type: "text", text }],
       timestamp: Date.now(),
     };
 
     set((state) => ({
       isPrompting: true,
       messages: [...state.messages, userMsg],
-      timeline: [...state.timeline, { kind: "message" as const, messageIndex: state.messages.length }],
     }));
 
     // Persist user message
     if (sessionId) {
       persist({
-        type: "user",
+        type: "chat_message",
         sessionId,
         timestamp: new Date().toISOString(),
-        uuid: generateUUID(),
-        message: { role: "user", content: text },
+        message: userMsg,
       }, get().cwd);
     }
 
@@ -174,16 +166,14 @@ export const useACPStore = create<ACPState>((set, get) => ({
       console.log("[acp] prompt completed:", result);
     } catch (e) {
       console.error("[acp] prompt failed:", e);
+      const errorMsg: ChatMessage = {
+        id: generateUUID(),
+        role: "agent",
+        parts: [{ type: "text", text: `Error: ${e}` }],
+        timestamp: Date.now(),
+      };
       set((state) => ({
-        messages: [
-          ...state.messages,
-          {
-            role: "agent",
-            content: `Error: ${e}`,
-            timestamp: Date.now(),
-          },
-        ],
-        timeline: [...state.timeline, { kind: "message" as const, messageIndex: state.messages.length }],
+        messages: [...state.messages, errorMsg],
       }));
     } finally {
       set({ isPrompting: false });
@@ -244,25 +234,18 @@ export const useACPStore = create<ACPState>((set, get) => ({
 
       if (agentSessionId) {
         // Resume session via ACP load_session
-        // Stop existing agent if running
         if (get().connected) {
           await invoke("acp_stop_agent");
-          // Wait briefly for cleanup
           await new Promise((r) => setTimeout(r, 100));
         }
 
-        // Reset state — agent will replay history via session/update events
         set({
           sessionId,
           agentSessionId,
           messages: [],
-          toolCalls: {},
-          timeline: [],
-          plan: [],
           isViewingHistory: false,
         });
 
-        // Start agent with load_session
         await invoke("acp_load_session", {
           agentPath: "claude-agent-acp",
           agentArgs: [],
@@ -272,41 +255,17 @@ export const useACPStore = create<ACPState>((set, get) => ({
       } else {
         // Fallback: read-only view for sessions without agentSessionId
         const records = await loadSession(projectPath, sessionId);
-        const messages: ACPMessage[] = [];
-        const toolCalls: Record<string, ACPToolCall> = {};
-        const timeline: TimelineEntry[] = [];
-
-        let plan: PlanEntry[] = [];
+        const messages: ChatMessage[] = [];
 
         for (const rec of records) {
-          if (rec.type === "user" || rec.type === "agent") {
-            const msg = rec.message as { role: "user" | "agent"; content: string };
-            timeline.push({ kind: "message", messageIndex: messages.length });
-            messages.push({
-              role: msg.role,
-              content: msg.content,
-              timestamp: new Date(rec.timestamp).getTime(),
-            });
-          } else if (rec.type === "tool_call") {
-            const tc = rec.toolCall as ACPToolCall;
-            if (tc) {
-              toolCalls[tc.toolCallId] = tc;
-              timeline.push({ kind: "tool_call", toolCallId: tc.toolCallId });
-            }
-          } else if (rec.type === "plan") {
-            plan = (rec.entries as PlanEntry[]) ?? [];
-            if (!timeline.some((t) => t.kind === "plan")) {
-              timeline.push({ kind: "plan" });
-            }
+          if (rec.type === "chat_message") {
+            messages.push(rec.message as ChatMessage);
           }
         }
 
         set({
           sessionId,
           messages,
-          toolCalls,
-          timeline,
-          plan,
           isViewingHistory: true,
           connected: false,
         });
@@ -321,10 +280,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
       sessionId: null,
       agentSessionId: null,
       messages: [],
-      toolCalls: {},
-      timeline: [],
       isViewingHistory: false,
-      plan: [],
     });
   },
 
@@ -333,14 +289,10 @@ export const useACPStore = create<ACPState>((set, get) => ({
     initialized = true;
 
     // Prewarm: start agent immediately if a project is already open
-    // This runs the full startup (spawn → initialize → new_session) in the background
-    // so the session is ready by the time the user opens the AI panel.
-    // Unused sessions don't create jsonl files, so no garbage accumulates.
     const { projectPath } = useWorkspaceStore.getState();
     if (projectPath) {
       get().startAgent(projectPath);
     } else {
-      // If no project yet, start agent as soon as one is opened
       const unsub = useWorkspaceStore.subscribe((state) => {
         if (state.projectPath && !get().connected) {
           get().startAgent(state.projectPath);
@@ -364,11 +316,10 @@ export const useACPStore = create<ACPState>((set, get) => ({
         const lastMsg = state.messages[state.messages.length - 1];
         if (lastMsg && lastMsg.role === "agent") {
           persist({
-            type: "agent",
+            type: "chat_message",
             sessionId: state.sessionId,
             timestamp: new Date().toISOString(),
-            uuid: generateUUID(),
-            message: { role: "agent", content: lastMsg.content },
+            message: lastMsg,
           }, state.cwd);
         }
       }
@@ -383,16 +334,14 @@ export const useACPStore = create<ACPState>((set, get) => ({
 
     listen("acp-error", (event) => {
       console.error("[acp] error:", event.payload);
+      const errorMsg: ChatMessage = {
+        id: generateUUID(),
+        role: "agent",
+        parts: [{ type: "text", text: `Error: ${event.payload}` }],
+        timestamp: Date.now(),
+      };
       set((state) => ({
-        messages: [
-          ...state.messages,
-          {
-            role: "agent",
-            content: `Error: ${event.payload}`,
-            timestamp: Date.now(),
-          },
-        ],
-        timeline: [...state.timeline, { kind: "message" as const, messageIndex: state.messages.length }],
+        messages: [...state.messages, errorMsg],
       }));
     }).then((fn) => unlisteners.push(fn));
 
@@ -416,6 +365,8 @@ export const useACPStore = create<ACPState>((set, get) => ({
     listen("acp-session-id", (event) => {
       const agentSessionId = event.payload as string;
       set({ agentSessionId, sessionReady: true });
+      // Connect to MCP servers for UI resource fetching
+      useMcpClientStore.getState().connectFromConfig();
       // Persist agentSessionId to session_meta
       const state = get();
       if (state.sessionId && state.cwd) {

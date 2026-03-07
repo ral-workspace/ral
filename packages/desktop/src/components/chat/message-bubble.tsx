@@ -1,23 +1,23 @@
+import { memo } from "react";
 import { SolarLoader } from "@helm/ui";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import { mermaid } from "@streamdown/mermaid";
-import type { ACPMessage } from "../../stores/acp-types";
 
-export function MessageBubble({
-  message,
+export const MessageBubble = memo(function MessageBubble({
+  role,
+  text,
   isStreaming = false,
 }: {
-  message: ACPMessage;
+  role: "user" | "agent";
+  text: string;
   isStreaming?: boolean;
 }) {
-  const isUser = message.role === "user";
-
-  if (isUser) {
+  if (role === "user") {
     return (
       <div>
         <div className="inline-block rounded-lg border bg-background px-3 py-2 text-xs text-foreground">
-          {message.content}
+          {text}
         </div>
       </div>
     );
@@ -40,9 +40,9 @@ export function MessageBubble({
           plugins={{ code, mermaid }}
           controls={{ table: false, code: true }}
         >
-          {message.content}
+          {text}
         </Streamdown>
       </div>
     </div>
   );
-}
+});
