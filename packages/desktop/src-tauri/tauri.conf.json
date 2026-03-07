@@ -37,7 +37,8 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "resources/icon-themes/": "icon-themes/"
+      "resources/icon-themes/": "icon-themes/",
+      "resources/sandbox-proxy.html": "sandbox-proxy.html"
     },
     "icon": [
       "icons/32x32.png",

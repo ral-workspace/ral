@@ -1,4 +1,5 @@
 mod acp;
+mod mcp;
 mod context_menu;
 mod document;
 mod fs;
@@ -15,10 +16,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_http::init())
         .manage(Mutex::new(terminal::TerminalManager::new()))
         .manage(Mutex::new(watcher::FileWatcherState { debouncer: None }))
         .manage(Mutex::new(acp::ACPManager::new()))
         .manage(Mutex::new(document::ConversionCache::new()))
+        .manage(Mutex::new(mcp::McpState::new()))
         .invoke_handler(tauri::generate_handler![
             fs::read_dir,
             fs::read_file,
@@ -49,6 +52,8 @@ pub fn run() {
             acp::acp_stop_agent,
             document::convert_to_pdf,
             context_menu::show_context_menu,
+            mcp::mcp_connect,
+            mcp::mcp_read_resource,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

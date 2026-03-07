@@ -8,3 +8,4 @@ export { useDiffStore } from "./diff-store";
 export { useDatabaseStore } from "./database-store";
 export { usePluginStore } from "./plugin-store";
 export { useSearchStore } from "./search-store";
+export { useMcpClientStore } from "./mcp-client-store";
