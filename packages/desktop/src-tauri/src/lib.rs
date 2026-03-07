@@ -17,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(Mutex::new(terminal::TerminalManager::new()))
         .manage(Mutex::new(watcher::FileWatcherState { debouncer: None }))
         .manage(Mutex::new(acp::ACPManager::new()))

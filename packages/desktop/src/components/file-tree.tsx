@@ -7,6 +7,7 @@ import {
 import { FileIcon, FolderIcon } from "./file-icon";
 import type { NativeMenuItem } from "../lib/native-context-menu";
 import { useNativeContextMenu } from "../lib/use-native-context-menu";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 interface DirEntry {
   name: string;
@@ -429,13 +430,13 @@ function TreeItem({
           .catch((err) => console.error("Failed to delete:", err));
         break;
       case "copy-path":
-        navigator.clipboard.writeText(entry.path);
+        writeText(entry.path);
         break;
       case "copy-relative-path": {
         const relative = entry.path.startsWith(rootPath + "/")
           ? entry.path.slice(rootPath.length + 1)
           : entry.path;
-        navigator.clipboard.writeText(relative);
+        writeText(relative);
         break;
       }
     }
