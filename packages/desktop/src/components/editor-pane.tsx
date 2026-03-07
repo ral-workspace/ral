@@ -12,6 +12,7 @@ import { DocumentViewer } from "./document-viewer";
 import { ImagePreview } from "./image-preview";
 import { SettingsEditor } from "./settings-editor";
 import { SimpleBrowser } from "./simple-browser";
+import { EditorBreadcrumb } from "./editor-breadcrumb";
 
 interface EditorPaneProps {
   groupId: string;
@@ -55,6 +56,9 @@ export function EditorPane({ groupId, className }: EditorPaneProps) {
       onMouseDown={handleFocus}
     >
       <TabBar groupId={groupId} />
+      {activeTab && !activeTab.type && !isImageFile(activeTab.id) && (
+        <EditorBreadcrumb filePath={activeTab.id} />
+      )}
       <div className="flex-1 overflow-hidden">
         {activeTab?.type === "settings" ? (
           <SettingsEditor />

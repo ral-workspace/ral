@@ -77,5 +77,14 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from "./components/ui/tooltip";
+export {
+  Breadcrumb,
+  BreadcrumbEllipsis,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/ui/breadcrumb";
 export { ThemeProvider } from "./components/theme-provider";
 export { cn } from "./lib/utils";
