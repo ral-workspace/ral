@@ -303,6 +303,97 @@ function InlineInput({
   );
 }
 
+function RenameInput({
+  entry,
+  depth,
+  expanded,
+  onDone,
+}: {
+  entry: DirEntry;
+  depth: number;
+  expanded: boolean;
+  onDone: (newPath: string | null) => void;
+}) {
+  const [value, setValue] = useState(entry.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const committedRef = useRef(false);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    // Select filename without extension for files
+    if (!entry.is_directory) {
+      const dotIdx = entry.name.lastIndexOf(".");
+      if (dotIdx > 0) {
+        input.setSelectionRange(0, dotIdx);
+      } else {
+        input.select();
+      }
+    } else {
+      input.select();
+    }
+  }, []);
+
+  const commit = async () => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const newName = value.trim();
+    if (!newName || newName === entry.name || newName.includes("/") || newName.includes("\\")) {
+      onDone(null);
+      return;
+    }
+    const parentDir = entry.path.slice(0, entry.path.lastIndexOf("/"));
+    const newPath = `${parentDir}/${newName}`;
+    try {
+      await invoke("rename_path", { from: entry.path, to: newPath });
+      onDone(newPath);
+    } catch (err) {
+      console.error("Failed to rename:", err);
+      onDone(null);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") { e.preventDefault(); commit(); }
+    else if (e.key === "Escape") { e.preventDefault(); committedRef.current = true; onDone(null); }
+  };
+
+  return (
+    <div
+      className="flex h-[22px] w-full min-w-0 items-center gap-1 pr-2"
+      style={{ paddingLeft: depth * 8 + 20 }}
+    >
+      {entry.is_directory ? (
+        <>
+          {expanded ? (
+            <IconChevronDown className="size-3 shrink-0 text-sidebar-foreground/50" />
+          ) : (
+            <IconChevronRight className="size-3 shrink-0 text-sidebar-foreground/50" />
+          )}
+          <FolderIcon folderName={value || entry.name} expanded={expanded} className="size-4 shrink-0" />
+        </>
+      ) : (
+        <>
+          <span className="size-3 shrink-0" />
+          <FileIcon fileName={value || entry.name} className="size-4 shrink-0" />
+        </>
+      )}
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={commit}
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
+        className="h-[18px] min-w-0 flex-1 bg-transparent text-[13px] text-sidebar-foreground outline-none ring-1 ring-blue-500 rounded-sm px-1"
+      />
+    </div>
+  );
+}
+
 function TreeItem({
   entry,
   depth,
@@ -337,6 +428,7 @@ function TreeItem({
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   const showInlineInput = creatingItem?.parentPath === entry.path && entry.is_directory;
   const isDragOver = dropTarget === entry.path && entry.is_directory;
@@ -421,6 +513,9 @@ function TreeItem({
       case "new-folder":
         onRequestCreate?.(entry.path, "folder");
         break;
+      case "rename":
+        setRenaming(true);
+        break;
       case "delete":
         invoke("delete_path", { path: entry.path })
           .then(() => {
@@ -446,6 +541,17 @@ function TreeItem({
 
   return (
     <>
+      {renaming ? (
+        <RenameInput
+          entry={entry}
+          depth={depth}
+          expanded={expanded}
+          onDone={(newPath) => {
+            setRenaming(false);
+            if (newPath) onTreeReload?.();
+          }}
+        />
+      ) : (
       <div
         draggable
         data-tree-path={entry.path}
@@ -483,6 +589,7 @@ function TreeItem({
         )}
         <span className="truncate">{entry.name}</span>
       </div>
+      )}
 
       {entry.is_directory && expanded && (
         <>

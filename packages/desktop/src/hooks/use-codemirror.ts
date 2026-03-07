@@ -122,6 +122,14 @@ function createCompartments() {
   };
 }
 
+// --- Active editor view (module-level, for external access) ---
+
+let activeEditorView: EditorView | null = null;
+
+export function getActiveEditorView(): EditorView | null {
+  return activeEditorView;
+}
+
 // --- Buffer cache ---
 
 const bufferCache = new Map<string, EditorState>();
@@ -297,6 +305,7 @@ export function useCodeMirror({
     });
 
     editorViewRef.current = view;
+    activeEditorView = view;
 
     return () => {
       // Save state on cleanup (unmount)
@@ -305,6 +314,7 @@ export function useCodeMirror({
       }
       view.destroy();
       editorViewRef.current = null;
+      if (activeEditorView === view) activeEditorView = null;
     };
   }, [content, filePath]);
 

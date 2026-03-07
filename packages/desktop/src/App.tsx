@@ -17,6 +17,7 @@ import { WelcomeScreen } from "./components/welcome-screen";
 import { Titlebar } from "./components/titlebar";
 import { CommandPalette } from "./components/command-palette";
 import { QuickOpen } from "./components/quick-open";
+import { GoToLine } from "./components/go-to-line";
 import { getCommands } from "./lib/commands";
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
   });
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
+  const [goToLineOpen, setGoToLineOpen] = useState(false);
 
   useEffect(() => {
     useWorkspaceStore.getState()._loadRecentProjects();
@@ -86,6 +88,11 @@ function App() {
         e.preventDefault();
         const { run } = getCommands().find((c) => c.id === "workbench.action.terminal.new") ?? {};
         run?.();
+      }
+      // Ctrl+G to go to line
+      if (e.ctrlKey && !e.shiftKey && !e.metaKey && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        setGoToLineOpen((v) => !v);
       }
       // Cmd+\ to split editor right
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
@@ -170,6 +177,10 @@ function App() {
       <QuickOpen
         open={quickOpenOpen}
         onClose={() => setQuickOpenOpen(false)}
+      />
+      <GoToLine
+        open={goToLineOpen}
+        onClose={() => setGoToLineOpen(false)}
       />
     </div>
     </TooltipProvider>
