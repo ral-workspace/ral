@@ -102,6 +102,7 @@ export function MarkdownEditor({ filePath }: MarkdownEditorProps) {
           editor={editor}
           onChange={handleChange}
           theme={resolvedTheme === "light" ? "light" : "dark"}
+          sideMenu={false}
         />
       </div>
     </div>
