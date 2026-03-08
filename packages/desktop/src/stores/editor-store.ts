@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { load, type Store } from "@tauri-apps/plugin-store";
 import type { OpenTab, EditorGroup, SplitNode } from "../types/editor";
-import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX } from "../types/editor";
+import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX } from "../types/editor";
 import { useDiffStore } from "./diff-store";
 import { useDatabaseStore } from "./database-store";
 import { invalidateBufferCache } from "../hooks/use-codemirror";
@@ -69,6 +69,7 @@ interface EditorState {
   openDiff: (path: string, oldText: string | null, newText: string) => void;
   openPreview: (path: string) => void;
   openDatabase: (path: string) => void;
+  openMarkdown: (path: string) => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToTheRight: (id: string) => void;
   closeSavedTabs: () => void;
@@ -372,6 +373,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const newGroups = updateGroup(groups, activeGroupId, (g) => ({
       ...g,
       openTabs: [...g.openTabs, { id: tabId, name, pinned: true, type: "database" }],
+      activeTabId: tabId,
+    }));
+    set(syncFromActiveGroup(newGroups, activeGroupId));
+  },
+
+  openMarkdown: (path) => {
+    const tabId = MARKDOWN_TAB_PREFIX + path;
+    const { groups, activeGroupId } = get();
+    const group = groups.get(activeGroupId)!;
+    const existing = group.openTabs.find((t) => t.id === tabId);
+    if (existing) {
+      const newGroups = updateGroup(groups, activeGroupId, (g) => ({ ...g, activeTabId: tabId }));
+      set(syncFromActiveGroup(newGroups, activeGroupId));
+      return;
+    }
+
+    const name = path.split("/").pop() ?? path;
+    const newGroups = updateGroup(groups, activeGroupId, (g) => ({
+      ...g,
+      openTabs: [...g.openTabs, { id: tabId, name, pinned: true, type: "markdown" }],
       activeTabId: tabId,
     }));
     set(syncFromActiveGroup(newGroups, activeGroupId));

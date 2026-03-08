@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { cn } from "@helm/ui";
 import { useEditorStore } from "../stores";
-import { isImageFile, isMarkdownFile } from "../lib/file-type";
-import { BROWSER_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX } from "../types/editor";
+import { isImageFile } from "../lib/file-type";
+import { BROWSER_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX } from "../types/editor";
 import type { EditorGroup } from "../types/editor";
 import { TabBar } from "./tab-bar";
 import { CodeMirrorEditor } from "./codemirror-editor";
@@ -57,7 +57,7 @@ export function EditorPane({ groupId, className }: EditorPaneProps) {
       onMouseDown={handleFocus}
     >
       <TabBar groupId={groupId} />
-      {activeTab && !activeTab.type && !isImageFile(activeTab.id) && !isMarkdownFile(activeTab.id) && (
+      {activeTab && activeTab.type === "file" && !isImageFile(activeTab.id) && (
         <EditorBreadcrumb filePath={activeTab.id} />
       )}
       <div className="flex-1 overflow-hidden">
@@ -81,8 +81,11 @@ export function EditorPane({ groupId, className }: EditorPaneProps) {
             key={activeTab.id}
             filePath={activeTab.id.slice(PREVIEW_TAB_PREFIX.length)}
           />
-        ) : activeTab && isMarkdownFile(activeTab.id) ? (
-          <MarkdownEditor key={activeTab.id} filePath={activeTab.id} />
+        ) : activeTab?.type === "markdown" ? (
+          <MarkdownEditor
+            key={activeTab.id}
+            filePath={activeTab.id.slice(MARKDOWN_TAB_PREFIX.length)}
+          />
         ) : activeTab && isImageFile(activeTab.id) ? (
           <ImagePreview filePath={activeTab.id} />
         ) : activeTab ? (

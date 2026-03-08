@@ -16,7 +16,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { FileTree, type CreatingItem } from "./file-tree";
 import { SearchView } from "./search-view";
 import { useWorkspaceStore, useEditorStore, useLayoutStore } from "../stores";
-import { isDocumentFile, isDbYamlFile } from "../lib/file-type";
+import { isDocumentFile, isDbYamlFile, isMarkdownFile } from "../lib/file-type";
 
 interface SidebarProps {
   className?: string;
@@ -35,6 +35,7 @@ export function Sidebar({ className }: SidebarProps) {
   const openFile = useEditorStore((s) => s.openFile);
   const openPreview = useEditorStore((s) => s.openPreview);
   const openDatabase = useEditorStore((s) => s.openDatabase);
+  const openMarkdown = useEditorStore((s) => s.openMarkdown);
 
   const handleFileOpen = useCallback(
     (path: string, pinned: boolean) => {
@@ -42,11 +43,13 @@ export function Sidebar({ className }: SidebarProps) {
         openDatabase(path);
       } else if (isDocumentFile(path)) {
         openPreview(path);
+      } else if (isMarkdownFile(path)) {
+        openMarkdown(path);
       } else {
         openFile(path, pinned);
       }
     },
-    [openFile, openPreview, openDatabase],
+    [openFile, openPreview, openDatabase, openMarkdown],
   );
 
   const activeView = useLayoutStore((s) => s.sidebarView);

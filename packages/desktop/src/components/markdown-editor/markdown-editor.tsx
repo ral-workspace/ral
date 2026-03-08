@@ -9,6 +9,7 @@ import { MarkdownToolbar } from "./markdown-toolbar";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
+import "./blocknote-theme.css";
 
 interface MarkdownEditorProps {
   filePath: string;
