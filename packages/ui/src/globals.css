@@ -173,8 +173,12 @@
     @apply border-border;
   }
 
+  html,
   body {
     @apply bg-background text-foreground;
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
   }
 
   button {

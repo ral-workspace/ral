@@ -4,6 +4,7 @@ mod context_menu;
 mod document;
 mod fs;
 mod git;
+mod history;
 mod icon_themes;
 mod lsp;
 mod search;
@@ -61,6 +62,11 @@ pub fn run() {
             mcp::mcp_connect,
             mcp::mcp_read_resource,
             git::git_diff_lines,
+            history::add_history_entry,
+            history::get_history_entries,
+            history::get_history_content,
+            history::delete_history_entry,
+            history::restore_history_entry,
             lsp::lsp_start,
             lsp::lsp_send,
             lsp::lsp_stop,

@@ -9,7 +9,7 @@ import "streamdown/styles.css";
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ThemeProvider attribute="class" defaultTheme="dark">
-      <div className="flex h-screen w-screen flex-col bg-background">
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
         <div className="flex-1 overflow-hidden">
           <App />
         </div>

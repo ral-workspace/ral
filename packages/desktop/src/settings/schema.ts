@@ -25,7 +25,13 @@ export interface UISettings {
   "ui.iconTheme": string;
 }
 
-export type Settings = EditorSettings & TerminalSettings & UISettings;
+export interface HistorySettings {
+  "history.enabled": boolean;
+  "history.maxEntries": number;
+  "history.maxFileSize": number;
+}
+
+export type Settings = EditorSettings & TerminalSettings & UISettings & HistorySettings;
 
 // VS Code macOS defaults
 export const DEFAULT_SETTINGS: Settings = {
@@ -49,6 +55,10 @@ export const DEFAULT_SETTINGS: Settings = {
 
   "ui.colorTheme": "dark",
   "ui.iconTheme": "material-icon-theme",
+
+  "history.enabled": true,
+  "history.maxEntries": 50,
+  "history.maxFileSize": 5,
 };
 
 // --- Settings metadata for UI rendering ---
@@ -213,6 +223,31 @@ export const SETTINGS_METADATA: Record<keyof Settings, SettingMeta> = {
     section: "UI",
     category: "Theme",
     type: "string",
+  },
+  "history.enabled": {
+    label: "Enable Local History",
+    description: "Save file snapshots on save. Allows restoring previous versions.",
+    section: "Editor",
+    category: "History",
+    type: "boolean",
+  },
+  "history.maxEntries": {
+    label: "Max History Entries",
+    description: "Maximum number of history entries to keep per file.",
+    section: "Editor",
+    category: "History",
+    type: "number",
+    min: 5,
+    max: 200,
+  },
+  "history.maxFileSize": {
+    label: "Max File Size (MB)",
+    description: "Files larger than this size will not have history saved.",
+    section: "Editor",
+    category: "History",
+    type: "number",
+    min: 1,
+    max: 50,
   },
 };
 

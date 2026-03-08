@@ -86,7 +86,7 @@ function TerminalInstanceRow({
   return (
     <div
       className={cn(
-        "group relative flex h-[26px] cursor-pointer select-none items-center gap-1 px-2 text-xs",
+        "group relative flex h-6 cursor-pointer select-none items-center gap-1 px-2 text-xs",
         isActive
           ? "text-foreground"
           : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
@@ -109,9 +109,10 @@ function TerminalInstanceRow({
       {isActive && (
         <div className="absolute bottom-0 left-0 top-0 w-px bg-primary" />
       )}
+      {prefix && <span className="shrink-0 text-muted-foreground">{prefix}</span>}
       <TerminalIcon processName={processName} className="text-[13px]" />
       <span className="flex-1 truncate">
-        {prefix}{processName}
+        {processName}
       </span>
       <div className="flex shrink-0 items-center gap-px opacity-0 transition-opacity group-hover:opacity-100">
         <button

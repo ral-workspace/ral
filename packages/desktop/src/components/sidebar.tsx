@@ -17,6 +17,22 @@ import { FileTree, type CreatingItem } from "./file-tree";
 import { SearchView } from "./search-view";
 import { useWorkspaceStore, useEditorStore, useLayoutStore } from "../stores";
 import { isDocumentFile, isDbYamlFile, isMarkdownFile } from "../lib/file-type";
+import { TimelineView } from "./timeline-view";
+import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX } from "../types/editor";
+
+const FILE_TAB_PREFIXES = [PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX] as const;
+const NON_FILE_PREFIXES = [SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX] as const;
+
+function tabIdToFilePath(tabId: string | null): string | null {
+  if (!tabId) return null;
+  for (const prefix of NON_FILE_PREFIXES) {
+    if (tabId === prefix || tabId.startsWith(prefix)) return null;
+  }
+  for (const prefix of FILE_TAB_PREFIXES) {
+    if (tabId.startsWith(prefix)) return tabId.slice(prefix.length);
+  }
+  return tabId;
+}
 
 interface SidebarProps {
   className?: string;
@@ -36,6 +52,8 @@ export function Sidebar({ className }: SidebarProps) {
   const openPreview = useEditorStore((s) => s.openPreview);
   const openDatabase = useEditorStore((s) => s.openDatabase);
   const openMarkdown = useEditorStore((s) => s.openMarkdown);
+  const activeTabId = useEditorStore((s) => s.activeTabId);
+  const activeFilePath = tabIdToFilePath(activeTabId);
 
   const handleFileOpen = useCallback(
     (path: string, pinned: boolean) => {
@@ -241,6 +259,9 @@ export function Sidebar({ className }: SidebarProps) {
                 )}
                 Timeline
               </button>
+              {timelineOpen && (
+                <TimelineView filePath={activeFilePath} />
+              )}
               <button
                 onClick={() => setOutlineOpen((v) => !v)}
                 className="flex h-[22px] w-full items-center gap-1 px-2 text-[11px] font-semibold text-sidebar-foreground/80 hover:bg-sidebar-accent"

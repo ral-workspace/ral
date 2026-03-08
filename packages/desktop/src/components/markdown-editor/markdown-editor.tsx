@@ -18,6 +18,7 @@ interface MarkdownEditorProps {
 export function MarkdownEditor({ filePath }: MarkdownEditorProps) {
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const readyRef = useRef(false);
   const { resolvedTheme } = useTheme();
   const openFile = useEditorStore((s) => s.openFile);
 
@@ -25,14 +26,40 @@ export function MarkdownEditor({ filePath }: MarkdownEditorProps) {
 
   const editor = useCreateBlockNote();
 
+  /** Strip trailing empty paragraph blocks before exporting to Markdown. */
+  const exportMarkdown = () => {
+    const blocks = editor.document;
+    // Find last non-empty block
+    let lastContentIdx = blocks.length - 1;
+    while (lastContentIdx >= 0) {
+      const block = blocks[lastContentIdx];
+      const isEmpty =
+        block.type === "paragraph" &&
+        Array.isArray(block.content) &&
+        block.content.length === 0 &&
+        (!block.children || block.children.length === 0);
+      if (!isEmpty) break;
+      lastContentIdx--;
+    }
+    const trimmedBlocks = blocks.slice(0, lastContentIdx + 1);
+    return editor.blocksToMarkdownLossy(
+      trimmedBlocks.length > 0 ? trimmedBlocks : blocks,
+    );
+  };
+
   // Load file content on mount
   useEffect(() => {
     let cancelled = false;
+    readyRef.current = false;
     invoke<string>("read_file", { path: filePath })
       .then((md) => {
         if (cancelled) return;
         const blocks = editor.tryParseMarkdownToBlocks(md);
         editor.replaceBlocks(editor.document, blocks);
+        // Mark ready after a tick so the initial onChange from replaceBlocks is ignored
+        requestAnimationFrame(() => {
+          readyRef.current = true;
+        });
         setLoading(false);
       })
       .catch(() => {
@@ -43,18 +70,21 @@ export function MarkdownEditor({ filePath }: MarkdownEditorProps) {
     };
   }, [filePath, editor]);
 
-  // Auto-save on change
+  const saveMarkdown = () => {
+    const md = exportMarkdown();
+    invoke("write_file", { path: filePath, content: md })
+      .then(() => {
+        useEditorStore.getState().markClean(filePath);
+      })
+      .catch((e) => console.error("Failed to save markdown:", e));
+  };
+
+  // Auto-save on change (skip initial onChange fired by replaceBlocks)
   const handleChange = () => {
+    if (!readyRef.current) return;
     useEditorStore.getState().markDirty(filePath);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const md = editor.blocksToMarkdownLossy(editor.document);
-      invoke("write_file", { path: filePath, content: md })
-        .then(() => {
-          useEditorStore.getState().markClean(filePath);
-        })
-        .catch((e) => console.error("Failed to save markdown:", e));
-    }, 1000);
+    debounceRef.current = setTimeout(saveMarkdown, 1000);
   };
 
   // Cmd+S immediate save
@@ -63,12 +93,7 @@ export function MarkdownEditor({ filePath }: MarkdownEditorProps) {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        const md = editor.blocksToMarkdownLossy(editor.document);
-        invoke("write_file", { path: filePath, content: md })
-          .then(() => {
-            useEditorStore.getState().markClean(filePath);
-          })
-          .catch((e) => console.error("Failed to save markdown:", e));
+        saveMarkdown();
       }
     };
     window.addEventListener("keydown", handler);

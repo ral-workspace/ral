@@ -31,6 +31,7 @@ import { getLanguageExtension } from "../lib/detect-language";
 import { diffGutterExtension, updateDiffMarkers, type DiffLine } from "../lib/diff-gutter";
 import { resolveEditorLineHeight } from "../settings";
 import { useSettingsStore, useEditorStore, useWorkspaceStore } from "../stores";
+import { addHistoryEntry } from "../services/history-service";
 import type { Settings } from "../settings";
 import { getOrStartLspClient } from "../services/lsp-service";
 
@@ -195,6 +196,10 @@ export function useCodeMirror({
               .then(() => {
                 useEditorStore.getState().markClean(path);
                 refreshDiffMarkers(path);
+                const s = useSettingsStore.getState().settings;
+                if (s["history.enabled"]) {
+                  addHistoryEntry(path, doc, "save", s["history.maxEntries"], s["history.maxFileSize"]).catch(() => {});
+                }
               })
               .catch((err) => console.error("Save failed:", err));
             return true;
