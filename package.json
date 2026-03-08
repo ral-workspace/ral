@@ -8,7 +8,8 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "release": "./scripts/release.sh"
   },
   "devDependencies": {
     "turbo": "^2"
