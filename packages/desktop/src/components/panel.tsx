@@ -1,6 +1,6 @@
 import { cn } from "@helm/ui";
 import { useState, useSyncExternalStore } from "react";
-import { IconX, IconArrowsMaximize, IconPlus } from "@tabler/icons-react";
+import { IconX, IconArrowsMaximize, IconPlus, IconLayoutColumns } from "@tabler/icons-react";
 import { Terminal } from "./terminal";
 import { useLayoutStore, useWorkspaceStore } from "../stores";
 import { useSettingsStore } from "../stores";
@@ -20,50 +20,67 @@ const panelTabs = [
 function TerminalTabs({ cwd }: { cwd?: string }) {
   const settings = useSettingsStore((s) => s.settings);
 
-  const terminalIds = useSyncExternalStore(
+  const groupIds = useSyncExternalStore(
     (cb) => terminalService.subscribe(cb),
-    () => terminalService.getTerminalIds(),
+    () => terminalService.getGroupIds(),
   );
 
-  const activeId = useSyncExternalStore(
+  const activeGroupId = useSyncExternalStore(
     (cb) => terminalService.subscribe(cb),
-    () => terminalService.getActiveTerminalId(),
+    () => terminalService.getActiveGroupId(),
   );
 
   return (
     <div className="flex h-full flex-col">
-      {/* Terminal instance tabs */}
+      {/* Terminal group tabs */}
       <div className="flex h-8 items-center gap-0.5 border-b px-1">
-        {terminalIds.map((id, index) => (
-          <div
-            key={id}
-            className={cn(
-              "group flex items-center gap-1 rounded px-2 py-0.5 text-[11px] cursor-pointer select-none",
-              activeId === id
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => terminalService.setActiveTerminalId(id)}
-            onMouseDown={(e) => {
-              // Middle click to kill
-              if (e.button === 1) {
-                e.preventDefault();
-                terminalService.killTerminal(id);
-              }
-            }}
-          >
-            <span>Terminal {index + 1}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                terminalService.killTerminal(id);
+        {groupIds.map((gid, index) => {
+          const group = terminalService.getGroup(gid);
+          const splitCount = group?.instanceIds.length ?? 1;
+          return (
+            <div
+              key={gid}
+              className={cn(
+                "group flex items-center gap-1 rounded px-2 py-0.5 text-[11px] cursor-pointer select-none",
+                activeGroupId === gid
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => terminalService.setActiveGroupId(gid)}
+              onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault();
+                  terminalService.killTerminal(gid);
+                }
               }}
-              className="flex h-4 w-4 items-center justify-center rounded opacity-0 transition-opacity hover:bg-foreground/10 group-hover:opacity-100"
             >
-              <IconX className="size-3" />
-            </button>
-          </div>
-        ))}
+              <span>
+                Terminal {index + 1}
+                {splitCount > 1 && ` (${splitCount})`}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  terminalService.killTerminal(gid);
+                }}
+                className="flex h-4 w-4 items-center justify-center rounded opacity-0 transition-opacity hover:bg-foreground/10 group-hover:opacity-100"
+              >
+                <IconX className="size-3" />
+              </button>
+            </div>
+          );
+        })}
+        <button
+          title="Split Terminal"
+          onClick={() => {
+            if (activeGroupId !== null) {
+              terminalService.splitTerminal(activeGroupId, cwd, settings);
+            }
+          }}
+          className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <IconLayoutColumns className="size-3.5" />
+        </button>
         <button
           title="New Terminal"
           onClick={() => terminalService.createTerminal(cwd, settings)}

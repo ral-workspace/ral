@@ -110,6 +110,22 @@ registerCommand({
 });
 
 registerCommand({
+  id: "workbench.action.terminal.split",
+  label: "Split Terminal",
+  category: "Terminal",
+  run: () => {
+    const layout = useLayoutStore.getState();
+    if (!layout.showBottomPanel) layout.setShowBottomPanel(true);
+    const groupId = terminalService.getActiveGroupId();
+    if (groupId !== null) {
+      const cwd = useWorkspaceStore.getState().projectPath ?? undefined;
+      const settings = useSettingsStore.getState().settings;
+      terminalService.splitTerminal(groupId, cwd, settings);
+    }
+  },
+});
+
+registerCommand({
   id: "workbench.action.terminal.kill",
   label: "Kill Active Terminal",
   category: "Terminal",

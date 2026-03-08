@@ -5,6 +5,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  Toaster,
   TooltipProvider,
 } from "@helm/ui";
 import { useWorkspaceStore, useLayoutStore, useEditorStore, useSettingsStore, useIconThemeStore, useACPStore } from "./stores";
@@ -183,6 +184,7 @@ function App() {
         onClose={() => setGoToLineOpen(false)}
       />
     </div>
+    <Toaster position="bottom-right" />
     </TooltipProvider>
   );
 }

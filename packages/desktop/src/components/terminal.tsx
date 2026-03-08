@@ -1,47 +1,45 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@helm/ui";
 import { terminalService } from "../services/terminal-service";
 import { useSettingsStore } from "../stores";
 
-export function Terminal({ cwd }: { cwd?: string }) {
-  const settings = useSettingsStore((s) => s.settings);
+/** Mounts a single xterm instance into a container */
+function TerminalPane({ instanceId }: { instanceId: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevIdRef = useRef<number | null>(null);
 
-  const activeId = useSyncExternalStore(
-    (cb) => terminalService.subscribe(cb),
-    () => terminalService.getActiveTerminalId(),
-  );
-
-  // Create initial terminal if none exists
-  useEffect(() => {
-    if (terminalService.getTerminalIds().length === 0) {
-      terminalService.createTerminal(cwd, settings);
-    }
-  }, []);
-
-  // Attach/detach when activeId changes
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Detach previous
-    if (prevIdRef.current !== null && prevIdRef.current !== activeId) {
-      terminalService.detachFromDOM(prevIdRef.current);
-    }
-
-    // Attach current
-    if (activeId !== null) {
-      terminalService.attachToDOM(activeId, container);
-    }
-
-    prevIdRef.current = activeId;
-
+    terminalService.attachToDOM(instanceId, container);
     return () => {
-      if (activeId !== null) {
-        terminalService.detachFromDOM(activeId);
-      }
+      terminalService.detachFromDOM(instanceId);
     };
-  }, [activeId]);
+  }, [instanceId]);
+
+  return <div ref={containerRef} className="h-full w-full pl-5 pt-2" />;
+}
+
+/** Renders all instances in a group as horizontal split panes */
+export function Terminal({ cwd }: { cwd?: string }) {
+  const settings = useSettingsStore((s) => s.settings);
+
+  const activeGroupId = useSyncExternalStore(
+    (cb) => terminalService.subscribe(cb),
+    () => terminalService.getActiveGroupId(),
+  );
+
+  const group = useSyncExternalStore(
+    (cb) => terminalService.subscribe(cb),
+    () => activeGroupId !== null ? terminalService.getGroup(activeGroupId) : undefined,
+  );
+
+  // Create initial terminal if none exists
+  useEffect(() => {
+    if (terminalService.getGroupIds().length === 0) {
+      terminalService.createTerminal(cwd, settings);
+    }
+  }, []);
 
   // Update existing terminals when settings change
   useEffect(() => {
@@ -53,5 +51,26 @@ export function Terminal({ cwd }: { cwd?: string }) {
     settings["terminal.cursorBlink"],
   ]);
 
-  return <div ref={containerRef} className="h-full w-full pl-5 pt-2" />;
+  if (!group || group.instanceIds.length === 0) {
+    return <div className="h-full w-full" />;
+  }
+
+  // Single instance — no split needed
+  if (group.instanceIds.length === 1) {
+    return <TerminalPane instanceId={group.instanceIds[0]} />;
+  }
+
+  // Multiple instances — horizontal split (like VS Code when panel is at bottom)
+  return (
+    <ResizablePanelGroup orientation="horizontal" className="h-full w-full">
+      {group.instanceIds.map((instId, i) => (
+        <div key={instId} className="contents">
+          {i > 0 && <ResizableHandle />}
+          <ResizablePanel minSize="80px">
+            <TerminalPane instanceId={instId} />
+          </ResizablePanel>
+        </div>
+      ))}
+    </ResizablePanelGroup>
+  );
 }
