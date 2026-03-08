@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -8,7 +9,14 @@ import {
   Toaster,
   TooltipProvider,
 } from "@helm/ui";
-import { useWorkspaceStore, useLayoutStore, useEditorStore, useSettingsStore, useIconThemeStore, useACPStore } from "./stores";
+import {
+  useWorkspaceStore,
+  useLayoutStore,
+  useEditorStore,
+  useSettingsStore,
+  useIconThemeStore,
+  useACPStore,
+} from "./stores";
 import { invalidateBufferCache } from "./hooks/use-codemirror";
 import { findGroupIds } from "./stores/editor-store";
 import { Sidebar } from "./components/sidebar";
@@ -37,11 +45,25 @@ function App() {
   const [goToLineOpen, setGoToLineOpen] = useState(false);
 
   useEffect(() => {
-    useWorkspaceStore.getState()._loadRecentProjects();
-    useSettingsStore.getState()._initSettings();
-    useIconThemeStore.getState()._initIconTheme();
-    useACPStore.getState()._init();
-    useEditorStore.getState()._restoreLayout();
+    const init = async () => {
+      await Promise.all([
+        useWorkspaceStore.getState()._loadRecentProjects(),
+        useSettingsStore.getState()._initSettings(),
+        useIconThemeStore.getState()._initIconTheme(),
+        useACPStore.getState()._init(),
+        useEditorStore.getState()._restoreLayout(),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]);
+
+      // Show window and fade out splash screen
+      await getCurrentWindow().show();
+      const splash = document.getElementById("splash");
+      if (splash) {
+        splash.classList.add("hidden");
+        splash.addEventListener("transitionend", () => splash.remove());
+      }
+    };
+    init();
   }, []);
 
   // File watcher: start/stop on projectPath change
@@ -71,27 +93,46 @@ function App() {
   // Command Palette: Cmd+Shift+P, Search: Cmd+Shift+F
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "p"
+      ) {
         e.preventDefault();
         setCommandPaletteOpen((v) => !v);
       }
       // Cmd+P to open Quick Open
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "p") {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "p"
+      ) {
         e.preventDefault();
         setQuickOpenOpen((v) => !v);
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "f"
+      ) {
         e.preventDefault();
         useLayoutStore.getState().setSidebarView("search");
       }
       // Ctrl+Shift+` to create new terminal
       if (e.ctrlKey && e.shiftKey && e.key === "`") {
         e.preventDefault();
-        const { run } = getCommands().find((c) => c.id === "workbench.action.terminal.new") ?? {};
+        const { run } =
+          getCommands().find((c) => c.id === "workbench.action.terminal.new") ??
+          {};
         run?.();
       }
       // Ctrl+G to go to line
-      if (e.ctrlKey && !e.shiftKey && !e.metaKey && e.key.toLowerCase() === "g") {
+      if (
+        e.ctrlKey &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        e.key.toLowerCase() === "g"
+      ) {
         e.preventDefault();
         setGoToLineOpen((v) => !v);
       }
@@ -102,7 +143,11 @@ function App() {
         splitGroup(activeGroupId, "horizontal");
       }
       // Cmd+1/2/3 to focus pane by index
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && ["1", "2", "3", "4", "5", "6", "7", "8", "9"].includes(e.key)) {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9"].includes(e.key)
+      ) {
         const idx = parseInt(e.key) - 1;
         const { splitRoot, setActiveGroup } = useEditorStore.getState();
         const groupIds = findGroupIds(splitRoot);
@@ -120,71 +165,76 @@ function App() {
 
   return (
     <TooltipProvider delayDuration={400}>
-    <div className="flex h-full w-full flex-col overflow-hidden">
-      <Titlebar />
-      <div className="flex flex-1 overflow-hidden">
-        {/* Main Content */}
-        <ResizablePanelGroup orientation="horizontal" className="flex-1">
-          {/* Sidebar (File Tree) */}
-          {showSidebar && (
-            <>
-              <ResizablePanel defaultSize="22%" minSize="18%" maxSize="35%">
-                <Sidebar />
-              </ResizablePanel>
-              <ResizableHandle />
-            </>
-          )}
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        <Titlebar />
+        <div className="flex flex-1 overflow-hidden">
+          {/* Main Content */}
+          <ResizablePanelGroup orientation="horizontal" className="flex-1">
+            {/* Sidebar (File Tree) */}
+            {showSidebar && (
+              <>
+                <ResizablePanel
+                  defaultSize="22%"
+                  minSize="180px"
+                  maxSize="350px"
+                >
+                  <Sidebar />
+                </ResizablePanel>
+                <ResizableHandle />
+              </>
+            )}
 
-          {/* Center: Editor + Terminal */}
-          <ResizablePanel defaultSize="100%" minSize="30%">
-            <div className="flex h-full flex-col">
-              <div className="flex-1 overflow-hidden">
-                {showBottomPanel ? (
-                  <ResizablePanelGroup orientation="vertical">
-                    <ResizablePanel defaultSize="70%" minSize="30%">
-                      {showEditor ? <EditorArea /> : <WelcomeScreen />}
-                    </ResizablePanel>
+            {/* Center: Editor + Terminal */}
+            <ResizablePanel defaultSize="100%" minSize="30%">
+              <div className="flex h-full flex-col">
+                <div className="flex-1 overflow-hidden">
+                  {showBottomPanel ? (
+                    <ResizablePanelGroup orientation="vertical">
+                      <ResizablePanel defaultSize="70%" minSize="30%">
+                        {showEditor ? <EditorArea /> : <WelcomeScreen />}
+                      </ResizablePanel>
 
-                    <ResizableHandle />
+                      <ResizableHandle />
 
-                    <ResizablePanel defaultSize="30%" minSize="15%">
-                      <TerminalPanel />
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
-                ) : showEditor ? (
-                  <EditorArea />
-                ) : (
-                  <WelcomeScreen />
-                )}
+                      <ResizablePanel defaultSize="30%" minSize="15%">
+                        <TerminalPanel />
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  ) : showEditor ? (
+                    <EditorArea />
+                  ) : (
+                    <WelcomeScreen />
+                  )}
+                </div>
               </div>
-            </div>
-          </ResizablePanel>
+            </ResizablePanel>
 
-          {/* Right: AI Chat Panel */}
-          {showSidePanel && (
-            <>
-              <ResizableHandle />
-              <ResizablePanel defaultSize="40%" minSize="30%" maxSize="50%">
-                <AiPanel />
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+            {/* Right: AI Chat Panel */}
+            {showSidePanel && (
+              <>
+                <ResizableHandle />
+                <ResizablePanel
+                  defaultSize="40%"
+                  minSize="350px"
+                  maxSize="500px"
+                >
+                  <AiPanel />
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        </div>
+        <CommandPalette
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+        />
+        <QuickOpen
+          open={quickOpenOpen}
+          onClose={() => setQuickOpenOpen(false)}
+        />
+        <GoToLine open={goToLineOpen} onClose={() => setGoToLineOpen(false)} />
       </div>
-      <CommandPalette
-        open={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-      />
-      <QuickOpen
-        open={quickOpenOpen}
-        onClose={() => setQuickOpenOpen(false)}
-      />
-      <GoToLine
-        open={goToLineOpen}
-        onClose={() => setGoToLineOpen(false)}
-      />
-    </div>
-    <Toaster position="bottom-right" />
+      <Toaster position="bottom-right" />
     </TooltipProvider>
   );
 }
