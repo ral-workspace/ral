@@ -28,3 +28,8 @@ export function isPdfFile(filePath: string): boolean {
 export function isDbYamlFile(filePath: string): boolean {
   return filePath.toLowerCase().endsWith(".db.yaml");
 }
+
+export function isMarkdownFile(filePath: string): boolean {
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return ext === "md" || ext === "mdx";
+}
