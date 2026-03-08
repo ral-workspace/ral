@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 struct TerminalInstance {
     master: Box<dyn MasterPty + Send>,
@@ -53,6 +53,19 @@ pub(crate) fn spawn_terminal(
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
 
+    // Resolve bundled runtime paths for PATH injection after shell init
+    let extra_paths: Vec<String> = if let Ok(resource_dir) = app.path().resource_dir() {
+        ["python/bin", "node/bin"]
+            .iter()
+            .filter_map(|rel| {
+                let p = resource_dir.join(rel);
+                if p.exists() { Some(p.display().to_string()) } else { None }
+            })
+            .collect()
+    } else {
+        vec![]
+    };
+
     if let Some(ref dir) = cwd {
         cmd.cwd(dir);
     }
@@ -66,7 +79,14 @@ pub(crate) fn spawn_terminal(
     drop(pair.slave);
 
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+    let mut writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+
+    // Inject PATH after shell init so it takes priority over profile scripts
+    if !extra_paths.is_empty() {
+        let paths = extra_paths.join(":");
+        let init_cmd = format!("export PATH=\"{}:$PATH\"; clear\n", paths);
+        let _ = writer.write_all(init_cmd.as_bytes());
+    }
 
     let mut manager = state.lock().map_err(|e| e.to_string())?;
     let id = manager.next_id;

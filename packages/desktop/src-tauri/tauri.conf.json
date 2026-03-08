@@ -15,10 +15,12 @@
         "title": "",
         "width": 1200,
         "height": 800,
+        "visible": false,
         "titleBarStyle": "Overlay",
         "decorations": true,
         "hiddenTitle": true,
         "dragDropEnabled": false,
+        "backgroundColor": [24, 24, 27, 255],
         "trafficLightPosition": {
           "x": 20,
           "y": 22.5
@@ -38,7 +40,9 @@
     "targets": "all",
     "resources": {
       "resources/icon-themes/": "icon-themes/",
-      "resources/sandbox-proxy.html": "sandbox-proxy.html"
+      "resources/sandbox-proxy.html": "sandbox-proxy.html",
+      "resources/python/": "python/",
+      "resources/node/": "node/"
     },
     "icon": [
       "icons/32x32.png",
