@@ -220,7 +220,7 @@ export function TabBar({ groupId }: TabBarProps) {
 
   return (
     <div
-      className="relative flex h-9 items-center overflow-x-auto scrollbar-none"
+      className="relative flex h-9 items-center overflow-x-auto scrollbar-none border-b"
       onDragLeave={handleDragLeave}
     >
       {openTabs.map((tab, index) => {
@@ -285,7 +285,6 @@ export function TabBar({ groupId }: TabBarProps) {
           </button>
         );
       })}
-      <div className="absolute bottom-0 left-0 right-0 z-0 h-px bg-border" />
     </div>
   );
 }
