@@ -52,13 +52,6 @@ export {
   DialogTitle,
   DialogTrigger,
 } from "./components/ui/dialog";
-export {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "./components/ui/context-menu";
 export { Kbd, KbdGroup } from "./components/ui/kbd";
 export {
   Table,

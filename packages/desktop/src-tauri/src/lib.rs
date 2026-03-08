@@ -44,6 +44,8 @@ pub fn run() {
             terminal::write_terminal,
             terminal::resize_terminal,
             terminal::kill_terminal,
+            terminal::get_terminal_process_name,
+            terminal::list_shells,
             icon_themes::ensure_icon_themes,
             icon_themes::list_icon_themes,
             icon_themes::load_icon_theme,

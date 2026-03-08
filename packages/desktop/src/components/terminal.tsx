@@ -35,8 +35,10 @@ export function Terminal({ cwd }: { cwd?: string }) {
   );
 
   // Create initial terminal if none exists
+  const creatingRef = useRef(false);
   useEffect(() => {
-    if (terminalService.getGroupIds().length === 0) {
+    if (terminalService.getGroupIds().length === 0 && !creatingRef.current) {
+      creatingRef.current = true;
       terminalService.createTerminal(cwd, settings);
     }
   }, []);

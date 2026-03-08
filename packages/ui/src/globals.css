@@ -88,6 +88,27 @@
   --sidebar-ring: oklch(0.705 0.015 286.067);
   --spinner: oklch(0.45 0.2 260);
   --tabview: oklch(0.984 0.001 286.375);
+
+  /* Terminal colors (VS Code light defaults) */
+  --terminal-foreground: #333333;
+  --terminal-cursor: #333333;
+  --terminal-selection-background: #add6ff;
+  --terminal-ansi-black: #000000;
+  --terminal-ansi-red: #cd3131;
+  --terminal-ansi-green: #107c10;
+  --terminal-ansi-yellow: #949800;
+  --terminal-ansi-blue: #0451a5;
+  --terminal-ansi-magenta: #bc05bc;
+  --terminal-ansi-cyan: #0598bc;
+  --terminal-ansi-white: #555555;
+  --terminal-ansi-bright-black: #666666;
+  --terminal-ansi-bright-red: #cd3131;
+  --terminal-ansi-bright-green: #14ce14;
+  --terminal-ansi-bright-yellow: #b5ba00;
+  --terminal-ansi-bright-blue: #0451a5;
+  --terminal-ansi-bright-magenta: #bc05bc;
+  --terminal-ansi-bright-cyan: #0598bc;
+  --terminal-ansi-bright-white: #a5a5a5;
 }
 
 .dark {
@@ -124,6 +145,27 @@
   --sidebar-ring: oklch(0.552 0.016 285.938);
   --spinner: oklch(0.7 0.15 260);
   --tabview: oklch(0.207 0.006 285.885);
+
+  /* Terminal colors (VS Code dark defaults) */
+  --terminal-foreground: #cccccc;
+  --terminal-cursor: #cccccc;
+  --terminal-selection-background: #264f78;
+  --terminal-ansi-black: #000000;
+  --terminal-ansi-red: #cd3131;
+  --terminal-ansi-green: #0dbc79;
+  --terminal-ansi-yellow: #e5e510;
+  --terminal-ansi-blue: #2472c8;
+  --terminal-ansi-magenta: #bc3fbc;
+  --terminal-ansi-cyan: #11a8cd;
+  --terminal-ansi-white: #e5e5e5;
+  --terminal-ansi-bright-black: #666666;
+  --terminal-ansi-bright-red: #f14c4c;
+  --terminal-ansi-bright-green: #23d18b;
+  --terminal-ansi-bright-yellow: #f5f543;
+  --terminal-ansi-bright-blue: #3b8eea;
+  --terminal-ansi-bright-magenta: #d670d6;
+  --terminal-ansi-bright-cyan: #29b8db;
+  --terminal-ansi-bright-white: #e5e5e5;
 }
 
 @layer base {

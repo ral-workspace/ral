@@ -1,4 +1,5 @@
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Mutex;
@@ -30,6 +31,7 @@ pub(crate) fn spawn_terminal(
     app: AppHandle,
     state: State<'_, Mutex<TerminalManager>>,
     cwd: Option<String>,
+    shell: Option<String>,
 ) -> Result<u32, String> {
     let pty_system = native_pty_system();
 
@@ -42,7 +44,9 @@ pub(crate) fn spawn_terminal(
         })
         .map_err(|e| e.to_string())?;
 
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let shell = shell
+        .or_else(|| std::env::var("SHELL").ok())
+        .unwrap_or_else(|| "/bin/zsh".to_string());
 
     let mut cmd = CommandBuilder::new(&shell);
     cmd.arg("-l");
@@ -166,4 +170,108 @@ pub(crate) fn kill_terminal(state: State<'_, Mutex<TerminalManager>>, id: u32) -
         let _ = terminal.child.kill();
     }
     Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn get_terminal_process_name(
+    state: State<'_, Mutex<TerminalManager>>,
+    id: u32,
+) -> Result<String, String> {
+    let manager = state.lock().map_err(|e| e.to_string())?;
+    let terminal = manager
+        .terminals
+        .get(&id)
+        .ok_or_else(|| format!("Terminal {} not found", id))?;
+
+    let shell_pid = terminal
+        .child
+        .process_id()
+        .ok_or_else(|| "No process ID".to_string())?;
+
+    Ok(foreground_process_name(shell_pid))
+}
+
+/// Get the foreground process name for a shell PID.
+/// Looks for child processes first; falls back to the shell itself.
+fn foreground_process_name(shell_pid: u32) -> String {
+    // Try to find a child (foreground) process
+    if let Ok(output) = std::process::Command::new("pgrep")
+        .args(["-P", &shell_pid.to_string()])
+        .output()
+    {
+        if let Ok(stdout) = std::str::from_utf8(&output.stdout) {
+            let trimmed = stdout.trim();
+            if let Some(last_line) = trimmed.lines().last() {
+                if let Ok(child_pid) = last_line.parse::<u32>() {
+                    if let Some(name) = process_name(child_pid) {
+                        return name;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to shell process name
+    process_name(shell_pid).unwrap_or_else(|| "terminal".to_string())
+}
+
+#[derive(Serialize, Clone)]
+pub(crate) struct ShellProfile {
+    pub name: String,
+    pub path: String,
+    pub is_default: bool,
+}
+
+#[tauri::command]
+pub(crate) fn list_shells() -> Result<Vec<ShellProfile>, String> {
+    let default_shell = std::env::var("SHELL").unwrap_or_default();
+
+    let contents = std::fs::read_to_string("/etc/shells").map_err(|e| e.to_string())?;
+    let mut profiles: Vec<ShellProfile> = contents
+        .lines()
+        .map(|line| {
+            let idx = line.find('#');
+            if let Some(i) = idx {
+                &line[..i]
+            } else {
+                line
+            }
+        })
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .filter(|s| std::path::Path::new(s).exists())
+        .map(|path| {
+            let name = std::path::Path::new(path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("terminal")
+                .to_string();
+            let is_default = path == default_shell;
+            ShellProfile {
+                name,
+                path: path.to_string(),
+                is_default,
+            }
+        })
+        .collect();
+
+    // Deduplicate by name (keep first occurrence, like VS Code)
+    let mut seen = std::collections::HashSet::new();
+    profiles.retain(|p| seen.insert(p.name.clone()));
+
+    Ok(profiles)
+}
+
+fn process_name(pid: u32) -> Option<String> {
+    let output = std::process::Command::new("ps")
+        .args(["-o", "comm=", "-p", &pid.to_string()])
+        .output()
+        .ok()?;
+    let name = std::str::from_utf8(&output.stdout).ok()?.trim();
+    let basename = name.rsplit('/').next().unwrap_or(name);
+    if basename.is_empty() {
+        None
+    } else {
+        Some(basename.to_string())
+    }
 }

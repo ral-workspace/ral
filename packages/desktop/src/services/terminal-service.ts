@@ -5,27 +5,33 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { TerminalSettings } from "../settings/schema";
 import "@xterm/xterm/css/xterm.css";
 
-const XTERM_THEME = {
-  foreground: "#cccccc",
-  cursor: "#cccccc",
-  selectionBackground: "#264f78",
-  black: "#000000",
-  red: "#cd3131",
-  green: "#0dbc79",
-  yellow: "#e5e510",
-  blue: "#2472c8",
-  magenta: "#bc3fbc",
-  cyan: "#11a8cd",
-  white: "#e5e5e5",
-  brightBlack: "#666666",
-  brightRed: "#f14c4c",
-  brightGreen: "#23d18b",
-  brightYellow: "#f5f543",
-  brightBlue: "#3b8eea",
-  brightMagenta: "#d670d6",
-  brightCyan: "#29b8db",
-  brightWhite: "#e5e5e5",
-};
+/** Read terminal theme colors from CSS custom properties */
+function getTerminalTheme(el?: Element): Record<string, string> {
+  const styles = getComputedStyle(el ?? document.documentElement);
+  const v = (name: string) => styles.getPropertyValue(name).trim();
+  return {
+    background: v("--background"),
+    foreground: v("--terminal-foreground"),
+    cursor: v("--terminal-cursor"),
+    selectionBackground: v("--terminal-selection-background"),
+    black: v("--terminal-ansi-black"),
+    red: v("--terminal-ansi-red"),
+    green: v("--terminal-ansi-green"),
+    yellow: v("--terminal-ansi-yellow"),
+    blue: v("--terminal-ansi-blue"),
+    magenta: v("--terminal-ansi-magenta"),
+    cyan: v("--terminal-ansi-cyan"),
+    white: v("--terminal-ansi-white"),
+    brightBlack: v("--terminal-ansi-bright-black"),
+    brightRed: v("--terminal-ansi-bright-red"),
+    brightGreen: v("--terminal-ansi-bright-green"),
+    brightYellow: v("--terminal-ansi-bright-yellow"),
+    brightBlue: v("--terminal-ansi-bright-blue"),
+    brightMagenta: v("--terminal-ansi-bright-magenta"),
+    brightCyan: v("--terminal-ansi-bright-cyan"),
+    brightWhite: v("--terminal-ansi-bright-white"),
+  };
+}
 
 interface TerminalInstance {
   xterm: XTerm;
@@ -34,6 +40,7 @@ interface TerminalInstance {
   ptyId: number;
   resizeObserver: ResizeObserver | null;
   opened: boolean;
+  processName: string;
 }
 
 /** A group represents a tab that may contain multiple split panes */
@@ -52,6 +59,26 @@ class TerminalService {
   private activeGroupId: number | null = null;
   private listeners = new Set<TerminalChangeListener>();
   private cachedGroupIds: number[] = [];
+  private processNameTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Sync terminal theme when dark/light mode changes
+    const observer = new MutationObserver(() => {
+      this.updateTheme();
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
+
+  /** Re-apply theme from CSS variables to all terminal instances */
+  private updateTheme(): void {
+    const theme = getTerminalTheme();
+    for (const [, instance] of this.instances) {
+      instance.xterm.options.theme = theme;
+    }
+  }
 
   subscribe(listener: TerminalChangeListener): () => void {
     this.listeners.add(listener);
@@ -61,6 +88,42 @@ class TerminalService {
   private notify(): void {
     this.cachedGroupIds = [...this.groups.keys()];
     for (const l of this.listeners) l();
+  }
+
+  getProcessName(instanceId: number): string {
+    return this.instances.get(instanceId)?.processName ?? "terminal";
+  }
+
+  private startProcessNamePolling(): void {
+    if (this.processNameTimer) return;
+    this.processNameTimer = setInterval(() => this.pollProcessNames(), 2000);
+  }
+
+  private stopProcessNamePolling(): void {
+    if (this.processNameTimer) {
+      clearInterval(this.processNameTimer);
+      this.processNameTimer = null;
+    }
+  }
+
+  private async pollProcessNames(): Promise<void> {
+    if (this.instances.size === 0) {
+      this.stopProcessNamePolling();
+      return;
+    }
+    let changed = false;
+    for (const [, instance] of this.instances) {
+      try {
+        const name = await invoke<string>("get_terminal_process_name", { id: instance.ptyId });
+        if (name !== instance.processName) {
+          instance.processName = name;
+          changed = true;
+        }
+      } catch {
+        // terminal may have been killed
+      }
+    }
+    if (changed) this.notify();
   }
 
   /** Returns ordered list of group ids (each group = one tab) */
@@ -111,8 +174,8 @@ class TerminalService {
   }
 
   /** Create a new terminal in a new group (new tab) */
-  async createTerminal(cwd?: string, termSettings?: TerminalSettings): Promise<number> {
-    const instanceId = await this._createInstance(cwd, termSettings);
+  async createTerminal(cwd?: string, termSettings?: TerminalSettings, shell?: string): Promise<number> {
+    const instanceId = await this._createInstance(cwd, termSettings, shell);
     const groupId = this.nextGroupId++;
     this.groups.set(groupId, {
       instanceIds: [instanceId],
@@ -124,11 +187,11 @@ class TerminalService {
   }
 
   /** Split the active instance in a group — creates a new instance in the same group */
-  async splitTerminal(groupId: number, cwd?: string, termSettings?: TerminalSettings): Promise<number | null> {
+  async splitTerminal(groupId: number, cwd?: string, termSettings?: TerminalSettings, shell?: string): Promise<number | null> {
     const group = this.groups.get(groupId);
     if (!group) return null;
 
-    const instanceId = await this._createInstance(cwd, termSettings);
+    const instanceId = await this._createInstance(cwd, termSettings, shell);
     // Insert after the active instance (like VS Code's addInstance)
     const activeIdx = group.instanceIds.indexOf(group.activeInstanceId);
     group.instanceIds.splice(activeIdx + 1, 0, instanceId);
@@ -213,14 +276,7 @@ class TerminalService {
       }
     }
 
-    const styles = getComputedStyle(container);
-    const bg = styles.getPropertyValue("--background").trim();
-    if (bg) {
-      instance.xterm.options.theme = {
-        ...XTERM_THEME,
-        background: bg,
-      };
-    }
+    instance.xterm.options.theme = getTerminalTheme(container);
 
     requestAnimationFrame(() => {
       instance.fitAddon.fit();
@@ -259,16 +315,13 @@ class TerminalService {
     }
   }
 
-  private async _createInstance(cwd?: string, termSettings?: TerminalSettings): Promise<number> {
+  private async _createInstance(cwd?: string, termSettings?: TerminalSettings, shell?: string): Promise<number> {
     const xterm = new XTerm({
       cursorBlink: termSettings?.["terminal.cursorBlink"] ?? true,
       fontSize: termSettings?.["terminal.fontSize"] ?? 12,
       lineHeight: termSettings?.["terminal.lineHeight"] ?? 1,
       fontFamily: termSettings?.["terminal.fontFamily"] ?? "Menlo, Monaco, 'Courier New', monospace",
-      theme: {
-        ...XTERM_THEME,
-        background: "#1e1e1e",
-      },
+      theme: getTerminalTheme(),
     });
 
     const fitAddon = new FitAddon();
@@ -276,6 +329,7 @@ class TerminalService {
 
     const ptyId = await invoke<number>("spawn_terminal", {
       cwd: cwd ?? null,
+      shell: shell ?? null,
     });
 
     const unlisten = await listen<string>(
@@ -297,7 +351,21 @@ class TerminalService {
       ptyId,
       resizeObserver: null,
       opened: false,
+      processName: "terminal",
     });
+
+    // Fetch initial process name
+    invoke<string>("get_terminal_process_name", { id: ptyId })
+      .then((name) => {
+        const inst = this.instances.get(id);
+        if (inst && name !== inst.processName) {
+          inst.processName = name;
+          this.notify();
+        }
+      })
+      .catch(() => {});
+
+    this.startProcessNamePolling();
 
     return id;
   }
