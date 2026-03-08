@@ -25,6 +25,11 @@ export function isPdfFile(filePath: string): boolean {
   return filePath.toLowerCase().endsWith(".pdf");
 }
 
+export function isPptxFile(filePath: string): boolean {
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return ext === "pptx" || ext === "ppt";
+}
+
 export function isDbYamlFile(filePath: string): boolean {
   return filePath.toLowerCase().endsWith(".db.yaml");
 }

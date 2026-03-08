@@ -24,7 +24,7 @@ pub fn run() {
         .manage(Mutex::new(terminal::TerminalManager::new()))
         .manage(Mutex::new(watcher::FileWatcherState { debouncer: None }))
         .manage(Mutex::new(acp::ACPManager::new()))
-        .manage(Mutex::new(document::ConversionCache::new()))
+
         .manage(Mutex::new(mcp::McpState::new()))
         .manage(Mutex::new(lsp::LspManager::new()))
         .invoke_handler(tauri::generate_handler![
