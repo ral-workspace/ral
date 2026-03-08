@@ -18,6 +18,7 @@ export interface TerminalSettings {
   "terminal.fontFamily": string;
   "terminal.lineHeight": number;
   "terminal.cursorBlink": boolean;
+  "terminal.scrollback": number;
 }
 
 export interface UISettings {
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   "terminal.fontFamily": "Menlo, Monaco, 'Courier New', monospace",
   "terminal.lineHeight": 1,
   "terminal.cursorBlink": true,
+  "terminal.scrollback": 5000,
 
   "ui.colorTheme": "dark",
   "ui.iconTheme": "material-icon-theme",
@@ -208,6 +210,15 @@ export const SETTINGS_METADATA: Record<keyof Settings, SettingMeta> = {
     section: "Terminal",
     category: "Behavior",
     type: "boolean",
+  },
+  "terminal.scrollback": {
+    label: "Scrollback",
+    description: "Maximum number of lines the terminal keeps in its buffer.",
+    section: "Terminal",
+    category: "Behavior",
+    type: "number",
+    min: 1000,
+    max: 100000,
   },
   "ui.colorTheme": {
     label: "Color Theme",

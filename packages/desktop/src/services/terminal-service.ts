@@ -308,6 +308,7 @@ class TerminalService {
       instance.xterm.options.fontFamily = termSettings["terminal.fontFamily"];
       instance.xterm.options.lineHeight = termSettings["terminal.lineHeight"];
       instance.xterm.options.cursorBlink = termSettings["terminal.cursorBlink"];
+      instance.xterm.options.scrollback = termSettings["terminal.scrollback"];
       if (instance.opened) {
         instance.fitAddon.fit();
         this.syncResize(instance);
@@ -321,6 +322,7 @@ class TerminalService {
       fontSize: termSettings?.["terminal.fontSize"] ?? 12,
       lineHeight: termSettings?.["terminal.lineHeight"] ?? 1,
       fontFamily: termSettings?.["terminal.fontFamily"] ?? "Menlo, Monaco, 'Courier New', monospace",
+      scrollback: termSettings?.["terminal.scrollback"] ?? 5000,
       theme: getTerminalTheme(),
     });
 

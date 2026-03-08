@@ -17,7 +17,11 @@ function TerminalPane({ instanceId }: { instanceId: number }) {
     };
   }, [instanceId]);
 
-  return <div ref={containerRef} className="h-full w-full pl-5 pt-2" />;
+  return (
+    <div className="h-full w-full py-2 pl-5">
+      <div ref={containerRef} className="h-full w-full overflow-hidden" />
+    </div>
+  );
 }
 
 /** Renders all instances in a group as horizontal split panes */
@@ -51,6 +55,7 @@ export function Terminal({ cwd }: { cwd?: string }) {
     settings["terminal.fontFamily"],
     settings["terminal.lineHeight"],
     settings["terminal.cursorBlink"],
+    settings["terminal.scrollback"],
   ]);
 
   if (!group || group.instanceIds.length === 0) {
