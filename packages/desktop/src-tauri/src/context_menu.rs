@@ -36,13 +36,14 @@ pub(crate) enum MenuItemDef {
 pub(crate) async fn show_context_menu(
     app: AppHandle,
     items: Vec<MenuItemDef>,
+    window_label: String,
 ) -> Result<Option<String>, String> {
     let (tx, rx) = oneshot::channel::<String>();
     let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
     let window = app
-        .get_webview_window("main")
-        .ok_or("No main window")?;
+        .get_webview_window(&window_label)
+        .ok_or("Window not found")?;
 
     let menu = build_menu(&app, &items)?;
 

@@ -1,11 +1,13 @@
 import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
 import { load } from "@tauri-apps/plugin-store";
+import { useSettingsStore } from "./settings-store";
 
 interface WorkspaceState {
   projectPath: string | null;
   recentProjects: string[];
   selectFolder: (path: string) => void;
-  _loadRecentProjects: () => void;
+  _loadRecentProjects: (restoreLastProject?: boolean) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -22,17 +24,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await store.set("lastProjectPath", path);
       await store.save();
     });
+
+    // Update native Open Recent menu
+    invoke("update_recent_menu", { paths: updated, autoSave: useSettingsStore.getState().settings["files.autoSave"] }).catch(() => {});
   },
 
-  _loadRecentProjects: () => {
+  _loadRecentProjects: (restoreLastProject = false) => {
     load("settings.json").then(async (store) => {
       const saved = await store.get<string[]>("recentProjects");
-      if (saved) set({ recentProjects: saved });
+      if (saved) {
+        set({ recentProjects: saved });
+        // Update native Open Recent menu
+        invoke("update_recent_menu", { paths: saved, autoSave: useSettingsStore.getState().settings["files.autoSave"] }).catch(() => {});
+      }
 
-      // Restore last opened project
-      const lastPath = await store.get<string>("lastProjectPath");
-      if (lastPath && !get().projectPath) {
-        set({ projectPath: lastPath });
+      // Restore last opened project (main window only)
+      if (restoreLastProject) {
+        const lastPath = await store.get<string>("lastProjectPath");
+        if (lastPath && !get().projectPath) {
+          set({ projectPath: lastPath });
+        }
       }
     });
   },

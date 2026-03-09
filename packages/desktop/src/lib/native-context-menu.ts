@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export type NativeMenuItem =
   | { type: "item"; id: string; label: string; disabled?: boolean }
@@ -19,5 +20,8 @@ export type NativeMenuItem =
 export function showNativeContextMenu(
   items: NativeMenuItem[],
 ): Promise<string | null> {
-  return invoke<string | null>("show_context_menu", { items });
+  return invoke<string | null>("show_context_menu", {
+    items,
+    windowLabel: getCurrentWindow().label,
+  });
 }

@@ -1,12 +1,20 @@
 use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 pub(crate) struct FileWatcherState {
-    #[allow(dead_code)]
-    pub(crate) debouncer: Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>>,
+    watchers: HashMap<String, notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>>,
+}
+
+impl FileWatcherState {
+    pub(crate) fn new() -> Self {
+        Self {
+            watchers: HashMap::new(),
+        }
+    }
 }
 
 #[tauri::command]
@@ -17,8 +25,10 @@ pub(crate) fn start_file_watcher(
 ) -> Result<(), String> {
     let mut watcher_state = state.lock().map_err(|e| e.to_string())?;
 
-    // Stop existing watcher
-    watcher_state.debouncer = None;
+    // Already watching this path
+    if watcher_state.watchers.contains_key(&path) {
+        return Ok(());
+    }
 
     let app_handle = app.clone();
     let mut debouncer = new_debouncer(Duration::from_millis(200), move |events: Result<Vec<notify_debouncer_mini::DebouncedEvent>, notify::Error>| {
@@ -38,13 +48,16 @@ pub(crate) fn start_file_watcher(
         .watch(Path::new(&path), notify::RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
 
-    watcher_state.debouncer = Some(debouncer);
+    watcher_state.watchers.insert(path, debouncer);
     Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn stop_file_watcher(state: State<'_, Mutex<FileWatcherState>>) -> Result<(), String> {
+pub(crate) fn stop_file_watcher(
+    state: State<'_, Mutex<FileWatcherState>>,
+    path: String,
+) -> Result<(), String> {
     let mut watcher_state = state.lock().map_err(|e| e.to_string())?;
-    watcher_state.debouncer = None;
+    watcher_state.watchers.remove(&path);
     Ok(())
 }
