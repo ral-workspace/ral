@@ -25,15 +25,11 @@
           24,
           27,
           255
-        ],
-        "trafficLightPosition": {
-          "x": 20,
-          "y": 22.5
-        }
+        ]
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; frame-src http: https:",
+      "csp": null,
       "assetProtocol": {
         "enable": true,
         "scope": [
