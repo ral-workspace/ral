@@ -145,6 +145,11 @@ export function clearBufferCache() {
   bufferCache.clear();
 }
 
+export function getBufferContent(path: string): string | null {
+  const state = bufferCache.get(path);
+  return state ? state.doc.toString() : null;
+}
+
 // --- Hook ---
 
 interface UseCodeMirrorOptions {

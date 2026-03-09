@@ -26,13 +26,17 @@ export interface UISettings {
   "ui.iconTheme": string;
 }
 
+export interface FileSettings {
+  "files.autoSave": boolean;
+}
+
 export interface HistorySettings {
   "history.enabled": boolean;
   "history.maxEntries": number;
   "history.maxFileSize": number;
 }
 
-export type Settings = EditorSettings & TerminalSettings & UISettings & HistorySettings;
+export type Settings = EditorSettings & TerminalSettings & UISettings & FileSettings & HistorySettings;
 
 // VS Code macOS defaults
 export const DEFAULT_SETTINGS: Settings = {
@@ -57,6 +61,8 @@ export const DEFAULT_SETTINGS: Settings = {
 
   "ui.colorTheme": "dark",
   "ui.iconTheme": "material-icon-theme",
+
+  "files.autoSave": false,
 
   "history.enabled": true,
   "history.maxEntries": 50,
@@ -234,6 +240,13 @@ export const SETTINGS_METADATA: Record<keyof Settings, SettingMeta> = {
     section: "UI",
     category: "Theme",
     type: "string",
+  },
+  "files.autoSave": {
+    label: "Auto Save",
+    description: "Automatically save files after a delay.",
+    section: "Editor",
+    category: "Files",
+    type: "boolean",
   },
   "history.enabled": {
     label: "Enable Local History",
