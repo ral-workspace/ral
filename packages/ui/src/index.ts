@@ -85,7 +85,7 @@ export {
   PopoverContent,
   PopoverTrigger,
 } from "./components/ui/popover";
-export { Toaster } from "./components/ui/sonner";
+export { Toaster, toast } from "./components/ui/sonner";
 export { ThemeProvider } from "./components/theme-provider";
 export { cn } from "./lib/utils";
 export { getPluginIcon } from "./components/plugin-icons";

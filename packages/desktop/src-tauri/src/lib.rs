@@ -8,11 +8,12 @@ mod history;
 mod icon_themes;
 mod lsp;
 mod menu;
+mod scheduler;
 mod search;
 mod terminal;
 mod watcher;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -23,11 +24,13 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Mutex::new(terminal::TerminalManager::new()))
         .manage(Mutex::new(watcher::FileWatcherState::new()))
         .manage(Mutex::new(acp::ACPManager::new()))
         .manage(Mutex::new(mcp::McpState::new()))
         .manage(Mutex::new(lsp::LspManager::new()))
+        .manage(Arc::new(Mutex::new(scheduler::SchedulerManager::new())))
         .setup(|app| {
             let handle = app.handle().clone();
             let app_menu = menu::build_app_menu(&handle, &[], false)
@@ -37,6 +40,19 @@ pub fn run() {
             app.on_menu_event(move |_app, event| {
                 menu::handle_menu_event(&handle, &event);
             });
+
+            // Start scheduler loop
+            {
+                let scheduler_state = app
+                    .state::<Arc<Mutex<scheduler::SchedulerManager>>>()
+                    .inner()
+                    .clone();
+                let scheduler_handle = app.handle().clone();
+                scheduler::manager::start_scheduler_loop(
+                    scheduler_state,
+                    scheduler_handle,
+                );
+            }
 
             Ok(())
         })
@@ -94,6 +110,14 @@ pub fn run() {
             lsp::lsp_send,
             lsp::lsp_stop,
             menu::update_recent_menu,
+            scheduler::scheduler_list_jobs,
+            scheduler::scheduler_create_job,
+            scheduler::scheduler_update_job,
+            scheduler::scheduler_delete_job,
+            scheduler::scheduler_toggle_job,
+            scheduler::scheduler_run_job_now,
+            scheduler::scheduler_cancel_job,
+            scheduler::scheduler_get_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "@tauri-apps/api/path";
-import { toast } from "sonner";
+import { toast } from "@helm/ui";
 
 const OFFICIAL_MARKETPLACE = "claude-plugins-official";
 const OFFICIAL_REPO = "anthropics/claude-plugins-official";

@@ -26,6 +26,7 @@ import {
 import { useSettingsStore } from "../stores";
 import type { Settings, SettingSection, SettingMeta } from "../settings";
 import { PluginSettings } from "./plugin-settings";
+import { AutomationSettings } from "./automation-settings";
 
 type SettingEntry = [keyof Settings, SettingMeta];
 
@@ -120,6 +121,8 @@ export function SettingsEditor() {
         <div className="flex-1 pb-8 pl-6">
           {!search && activeSection === "Plugins" ? (
             <PluginSettings />
+          ) : !search && activeSection === "Automation" ? (
+            <AutomationSettings />
           ) : filteredEntries.length === 0 ? (
             <div className="flex h-40 items-center justify-center">
               <span className="text-xs text-muted-foreground">

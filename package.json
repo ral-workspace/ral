@@ -9,6 +9,7 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "clean": "turbo clean",
+    "test": "turbo test",
     "release": "./scripts/release.sh"
   },
   "devDependencies": {

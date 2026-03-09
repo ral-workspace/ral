@@ -390,7 +390,7 @@ function App() {
         />
         <GoToLine open={goToLineOpen} onClose={() => setGoToLineOpen(false)} />
       </div>
-      <Toaster position="bottom-right" />
+      <Toaster position="bottom-right" richColors />
     </TooltipProvider>
   );
 }
