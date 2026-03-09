@@ -28,7 +28,7 @@ export function Titlebar() {
   const title = titleParts.length > 0 ? titleParts.join(" - ") : "Helm";
 
   return (
-    <header className="h-10 select-none border-b bg-sidebar">
+    <header className="h-[34px] select-none border-b bg-sidebar">
       <nav className="relative flex h-full items-center" data-tauri-drag-region>
         {/* Title - absolute center */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
