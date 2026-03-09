@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   loadSession,
   listSessions,
@@ -69,6 +70,9 @@ interface ACPState {
 let unlisteners: UnlistenFn[] = [];
 let initialized = false;
 
+const currentWindow = getCurrentWindow();
+const windowLabel = currentWindow.label;
+
 function generateUUID(): string {
   return crypto.randomUUID();
 }
@@ -90,8 +94,12 @@ export const useACPStore = create<ACPState>((set, get) => ({
   availableCommands: [],
 
   startAgent: async (cwd) => {
+    // Show "Connecting..." immediately
+    set({ connected: true, sessionReady: false });
+
     try {
       await invoke("acp_start_agent", {
+        windowLabel,
         agentPath: "claude-agent-acp",
         agentArgs: [],
         cwd,
@@ -104,6 +112,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
         return;
       }
       console.error("[acp] start agent failed:", e);
+      set({ connected: false, sessionReady: false });
       return;
     }
 
@@ -164,7 +173,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
     }
 
     try {
-      const result = await invoke<string>("acp_send_prompt", { text });
+      const result = await invoke<string>("acp_send_prompt", { windowLabel, text });
       console.log("[acp] prompt completed:", result);
     } catch (e) {
       console.error("[acp] prompt failed:", e);
@@ -184,7 +193,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
 
   cancelPrompt: async () => {
     try {
-      await invoke("acp_cancel");
+      await invoke("acp_cancel", { windowLabel });
     } catch (e) {
       console.error("[acp] cancel failed:", e);
     }
@@ -193,7 +202,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
   respondPermission: async (toolCallId, optionId) => {
     set({ pendingPermission: null });
     try {
-      await invoke("acp_respond_permission", { toolCallId, optionId });
+      await invoke("acp_respond_permission", { windowLabel, toolCallId, optionId });
     } catch (e) {
       console.error("[acp] respond permission failed:", e);
     }
@@ -201,7 +210,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
 
   setConfigOption: async (configId, value) => {
     try {
-      const result = await invoke<ConfigOption[]>("acp_set_config_option", { configId, value });
+      const result = await invoke<ConfigOption[]>("acp_set_config_option", { windowLabel, configId, value });
       if (result) {
         set({ configOptions: result });
       }
@@ -212,7 +221,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
 
   stopAgent: async () => {
     try {
-      await invoke("acp_stop_agent");
+      await invoke("acp_stop_agent", { windowLabel });
     } catch (e) {
       console.error("[acp] stop agent failed:", e);
     }
@@ -237,7 +246,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
       if (agentSessionId) {
         // Resume session via ACP load_session
         if (get().connected) {
-          await invoke("acp_stop_agent");
+          await invoke("acp_stop_agent", { windowLabel });
           await new Promise((r) => setTimeout(r, 100));
         }
 
@@ -249,6 +258,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
         });
 
         await invoke("acp_load_session", {
+          windowLabel,
           agentPath: "claude-agent-acp",
           agentArgs: [],
           cwd: projectPath,
@@ -290,28 +300,31 @@ export const useACPStore = create<ACPState>((set, get) => ({
     if (initialized) return;
     initialized = true;
 
-    // Prewarm: start agent immediately if a project is already open
+    // Prewarm: start agent immediately
     const { projectPath } = useWorkspaceStore.getState();
-    if (projectPath) {
-      get().startAgent(projectPath);
-    } else {
-      const unsub = useWorkspaceStore.subscribe((state) => {
-        if (state.projectPath && !get().connected) {
+    get().startAgent(projectPath ?? ".");
+
+    // Re-start agent when project changes
+    useWorkspaceStore.subscribe((state, prev) => {
+      if (state.projectPath && state.projectPath !== prev.projectPath) {
+        const { sessionReady } = get();
+        if (sessionReady) {
+          get().stopAgent().then(() => get().startAgent(state.projectPath!));
+        } else {
           get().startAgent(state.projectPath);
-          unsub();
         }
-      });
-    }
+      }
+    });
 
     // Listen for ACP events
-    listen("acp-connected", (event) => {
+    currentWindow.listen("acp-connected", (event) => {
       set({
         connected: true,
         agentInfo: event.payload as Record<string, unknown>,
       });
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-disconnected", () => {
+    currentWindow.listen("acp-disconnected", () => {
       // Persist final agent message if streaming was in progress
       const state = get();
       if (state.sessionId) {
@@ -334,7 +347,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
       });
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-error", (event) => {
+    currentWindow.listen("acp-error", (event) => {
       console.error("[acp] error:", event.payload);
       const errorMsg: ChatMessage = {
         id: generateUUID(),
@@ -347,24 +360,24 @@ export const useACPStore = create<ACPState>((set, get) => ({
       }));
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-update", (event) => {
+    currentWindow.listen("acp-update", (event) => {
       handleSessionUpdate(event.payload, set, get);
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-auth-started", () => {
+    currentWindow.listen("acp-auth-started", () => {
       set({ isAuthenticating: true });
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-auth-completed", () => {
+    currentWindow.listen("acp-auth-completed", () => {
       set({ isAuthenticating: false });
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-permission", (event) => {
+    currentWindow.listen("acp-permission", (event) => {
       const req = event.payload as ACPPermissionRequest;
       set({ pendingPermission: req });
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-session-id", (event) => {
+    currentWindow.listen("acp-session-id", (event) => {
       const agentSessionId = event.payload as string;
       set({ agentSessionId, sessionReady: true });
       // Connect to MCP servers for UI resource fetching
@@ -383,7 +396,7 @@ export const useACPStore = create<ACPState>((set, get) => ({
       }
     }).then((fn) => unlisteners.push(fn));
 
-    listen("acp-config-options", (event) => {
+    currentWindow.listen("acp-config-options", (event) => {
       const options = event.payload as ConfigOption[];
       set({ configOptions: Array.isArray(options) ? options : [] });
     }).then((fn) => unlisteners.push(fn));
