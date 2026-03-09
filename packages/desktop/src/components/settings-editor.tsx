@@ -77,23 +77,25 @@ export function SettingsEditor() {
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-6">
       {/* Search */}
-      <div className="flex items-center gap-2 px-5 py-3">
-        <IconSearch className="size-3.5 text-muted-foreground" />
-        <Input
-          type="text"
-          placeholder="Search settings..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-7 flex-1 border-none bg-transparent text-sm shadow-none focus-visible:ring-0"
-        />
+      <div className="py-3">
+        <div className="relative">
+          <IconSearch className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search settings..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-7 w-full pl-8 text-sm shadow-none"
+          />
+        </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         {/* Section nav */}
-        <div className="w-36 shrink-0 overflow-y-auto px-3">
-          <div className="flex flex-col gap-0.5">
+        <div className="w-36 shrink-0">
+          <div className="sticky top-3 flex flex-col gap-0.5">
             {SETTING_SECTIONS.map((sec) => (
               <button
                 key={sec}
@@ -115,7 +117,7 @@ export function SettingsEditor() {
         </div>
 
         {/* Settings list */}
-        <div className="flex-1 overflow-y-auto px-6 pb-8">
+        <div className="flex-1 pb-8 pl-6">
           {!search && activeSection === "Plugins" ? (
             <PluginSettings />
           ) : filteredEntries.length === 0 ? (
@@ -131,7 +133,7 @@ export function SettingsEditor() {
                   <h2 className="text-sm font-semibold text-foreground">
                     {category}
                   </h2>
-                  <ItemGroup className="rounded-lg bg-card">
+                  <ItemGroup className="rounded-lg border bg-card">
                     {entries.map(([key, meta], i) => (
                       <div key={key}>
                         {i > 0 && <Separator />}

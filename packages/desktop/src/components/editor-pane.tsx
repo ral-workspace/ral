@@ -60,7 +60,7 @@ export function EditorPane({ groupId, className }: EditorPaneProps) {
       {activeTab && activeTab.type === "file" && !isImageFile(activeTab.id) && (
         <EditorBreadcrumb filePath={activeTab.id} />
       )}
-      <div className="flex-1 overflow-hidden">
+      <div className={cn("flex-1", activeTab?.type === "settings" ? "overflow-y-auto scrollbar-none" : "overflow-hidden")}>
         {activeTab?.type === "settings" ? (
           <SettingsEditor />
         ) : activeTab?.type === "diff" ? (

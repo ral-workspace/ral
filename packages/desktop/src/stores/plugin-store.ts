@@ -1,47 +1,40 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "@tauri-apps/api/path";
+import { toast } from "sonner";
 
-export interface PluginInfo {
-  id: string;
+const OFFICIAL_MARKETPLACE = "claude-plugins-official";
+const OFFICIAL_REPO = "anthropics/claude-plugins-official";
+const OFFICIAL_URL =
+  "https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/.claude-plugin/marketplace.json";
+
+const BUILTIN_MARKETPLACE = "helm-plugins";
+const BUILTIN_REPO = "cohaku-ai/helm-plugins";
+const BUILTIN_URL =
+  "https://raw.githubusercontent.com/cohaku-ai/helm-plugins/main/.claude-plugin/marketplace.json";
+
+export interface MarketplacePlugin {
   name: string;
   description: string;
-  npmPackage: string;
+  author: { name: string; email?: string };
+  category?: string;
+  version?: string;
+  tags?: string[];
+  source: string | { source: string; url?: string };
+  marketplace: string;
 }
 
-/** Hard-coded list of available @nvq plugins */
-export const AVAILABLE_PLUGINS: PluginInfo[] = [
-  {
-    id: "database",
-    name: "Database",
-    description: "Create and edit .db.yaml database files — Notion-like tables and boards as YAML",
-    npmPackage: "@nvq/claude-plugin-database",
-  },
-  {
-    id: "presentation",
-    name: "Presentation",
-    description: "Create PowerPoint (.pptx) presentations using python-pptx",
-    npmPackage: "@nvq/claude-plugin-presentation",
-  },
-  {
-    id: "spreadsheet",
-    name: "Spreadsheet",
-    description: "Create Excel (.xlsx) spreadsheets using openpyxl",
-    npmPackage: "@nvq/claude-plugin-spreadsheet",
-  },
-];
-
 interface PluginState {
-  /** Map of plugin npm package name → enabled */
+  plugins: MarketplacePlugin[];
   installedPlugins: Record<string, boolean>;
-  /** Currently installing/uninstalling plugin id */
   loadingId: string | null;
-  /** Load installed plugins from ~/.claude/settings.json */
+  isLoading: boolean;
+  fetchMarketplace: () => Promise<void>;
   loadInstalled: () => Promise<void>;
-  /** Install a plugin via claude CLI */
-  installPlugin: (pluginId: string) => Promise<void>;
-  /** Uninstall a plugin via claude CLI */
-  uninstallPlugin: (pluginId: string) => Promise<void>;
+  ensureBuiltins: () => Promise<void>;
+  bootstrapBuiltins: () => Promise<void>;
+  installPlugin: (name: string) => Promise<void>;
+  uninstallPlugin: (name: string) => Promise<void>;
 }
 
 async function readClaudeSettings(): Promise<Record<string, unknown>> {
@@ -64,37 +57,117 @@ async function runClaudeCommand(args: string[]): Promise<void> {
   });
 }
 
+async function ensureMarketplaceAdded(name: string, repo: string): Promise<void> {
+  const settings = await readClaudeSettings();
+  const known = (settings.extraKnownMarketplaces ?? {}) as Record<string, unknown>;
+  if (known[name]) return;
+  await runClaudeCommand(["plugin", "marketplace", "add", repo]);
+}
+
+async function fetchPluginsFrom(
+  url: string,
+  marketplace: string,
+): Promise<MarketplacePlugin[]> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return ((data.plugins ?? []) as Omit<MarketplacePlugin, "marketplace">[]).map(
+    (p) => ({ ...p, marketplace }),
+  );
+}
+
 export const usePluginStore = create<PluginState>((set, get) => ({
+  plugins: [],
   installedPlugins: {},
   loadingId: null,
+  isLoading: false,
+
+  fetchMarketplace: async () => {
+    set({ isLoading: true });
+    try {
+      const results = await Promise.allSettled([
+        fetchPluginsFrom(BUILTIN_URL, BUILTIN_MARKETPLACE),
+        fetchPluginsFrom(OFFICIAL_URL, OFFICIAL_MARKETPLACE),
+      ]);
+      const plugins: MarketplacePlugin[] = [];
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          plugins.push(...result.value);
+        } else {
+          console.error("[plugins] fetch failed:", result.reason);
+        }
+      }
+      set({ plugins });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
   loadInstalled: async () => {
     const settings = await readClaudeSettings();
-    const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
-    set({ installedPlugins: enabled });
+    const raw = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
+    const installed: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(raw)) {
+      const name = key.split("@")[0];
+      installed[name] = value;
+    }
+    set({ installedPlugins: installed });
   },
 
-  installPlugin: async (pluginId: string) => {
-    const plugin = AVAILABLE_PLUGINS.find((p) => p.id === pluginId);
-    if (!plugin) return;
+  bootstrapBuiltins: async () => {
+    const STORAGE_KEY = "helm:builtins-installed";
+    if (localStorage.getItem(STORAGE_KEY)) return;
+    await get().fetchMarketplace();
+    await get().ensureBuiltins();
+    localStorage.setItem(STORAGE_KEY, "1");
+  },
 
-    set({ loadingId: pluginId });
+  ensureBuiltins: async () => {
+    const settings = await readClaudeSettings();
+    const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
+    const builtins = get().plugins.filter((p) => p.marketplace === BUILTIN_MARKETPLACE);
+    const missing = builtins.filter((p) => {
+      return !Object.keys(enabled).some((key) => key.split("@")[0] === p.name);
+    });
+    if (missing.length === 0) return;
+    await ensureMarketplaceAdded(BUILTIN_MARKETPLACE, BUILTIN_REPO);
+    for (const plugin of missing) {
+      try {
+        await runClaudeCommand(["plugin", "install", `${plugin.name}@${BUILTIN_MARKETPLACE}`]);
+      } catch (e) {
+        console.error("[plugins] builtin install failed:", plugin.name, e);
+      }
+    }
+    await get().loadInstalled();
+  },
+
+  installPlugin: async (name: string) => {
+    set({ loadingId: name });
     try {
-      await runClaudeCommand(["plugin", "install", plugin.npmPackage]);
+      const plugin = get().plugins.find((p) => p.name === name);
+      const mp = plugin?.marketplace ?? OFFICIAL_MARKETPLACE;
+      const repo = mp === BUILTIN_MARKETPLACE ? BUILTIN_REPO : OFFICIAL_REPO;
+      await ensureMarketplaceAdded(mp, repo);
+      await runClaudeCommand(["plugin", "install", `${name}@${mp}`]);
       await get().loadInstalled();
+      toast.success(`${name} installed`);
+    } catch (e) {
+      toast.error(`Failed to install ${name}`);
+      console.error("[plugins] install failed:", name, e);
     } finally {
       set({ loadingId: null });
     }
   },
 
-  uninstallPlugin: async (pluginId: string) => {
-    const plugin = AVAILABLE_PLUGINS.find((p) => p.id === pluginId);
-    if (!plugin) return;
-
-    set({ loadingId: pluginId });
+  uninstallPlugin: async (name: string) => {
+    set({ loadingId: name });
     try {
-      await runClaudeCommand(["plugin", "uninstall", plugin.npmPackage]);
+      await runClaudeCommand(["plugin", "uninstall", name]);
       await get().loadInstalled();
+      toast.success(`${name} uninstalled`);
+    } catch (e) {
+      toast.error(`Failed to uninstall ${name}`);
+      console.error("[plugins] uninstall failed:", e);
     } finally {
       set({ loadingId: null });
     }

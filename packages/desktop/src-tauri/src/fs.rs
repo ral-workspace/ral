@@ -107,6 +107,7 @@ pub(crate) async fn run_command(command: String, args: Vec<String>) -> Result<St
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[run_command] {} {:?} failed: {}", command, args, stderr);
         Err(format!("Command failed: {}", stderr))
     }
 }
