@@ -1,3 +1,4 @@
+export { Badge, badgeVariants } from "./components/ui/badge";
 export { Button, buttonVariants } from "./components/ui/button";
 export {
   Field,
@@ -87,3 +88,4 @@ export {
 export { Toaster } from "./components/ui/sonner";
 export { ThemeProvider } from "./components/theme-provider";
 export { cn } from "./lib/utils";
+export { getPluginIcon } from "./components/plugin-icons";
