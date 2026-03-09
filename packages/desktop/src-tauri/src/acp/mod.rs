@@ -13,35 +13,38 @@ use manager::ACPCommand;
 pub(crate) async fn acp_start_agent(
     app: AppHandle,
     state: State<'_, Mutex<ACPManager>>,
+    window_label: String,
     agent_path: String,
     agent_args: Vec<String>,
     cwd: String,
 ) -> Result<(), String> {
     let mut manager = state.lock().map_err(|e| e.to_string())?;
-    manager.start_agent(app, agent_path, agent_args, cwd, None)
+    manager.start_agent(window_label, app, agent_path, agent_args, cwd, None)
 }
 
 #[tauri::command]
 pub(crate) async fn acp_load_session(
     app: AppHandle,
     state: State<'_, Mutex<ACPManager>>,
+    window_label: String,
     agent_path: String,
     agent_args: Vec<String>,
     cwd: String,
     session_id: String,
 ) -> Result<(), String> {
     let mut manager = state.lock().map_err(|e| e.to_string())?;
-    manager.start_agent(app, agent_path, agent_args, cwd, Some(session_id))
+    manager.start_agent(window_label, app, agent_path, agent_args, cwd, Some(session_id))
 }
 
 #[tauri::command]
 pub(crate) async fn acp_send_prompt(
     state: State<'_, Mutex<ACPManager>>,
+    window_label: String,
     text: String,
 ) -> Result<String, String> {
     let tx = {
         let manager = state.lock().map_err(|e| e.to_string())?;
-        manager.cmd_tx.clone().ok_or("Agent not running")?
+        manager.get_tx(&window_label).ok_or("Agent not running")?
     };
 
     let (resp_tx, resp_rx) = oneshot::channel();
@@ -55,10 +58,11 @@ pub(crate) async fn acp_send_prompt(
 #[tauri::command]
 pub(crate) async fn acp_cancel(
     state: State<'_, Mutex<ACPManager>>,
+    window_label: String,
 ) -> Result<(), String> {
     let tx = {
         let manager = state.lock().map_err(|e| e.to_string())?;
-        manager.cmd_tx.clone().ok_or("Agent not running")?
+        manager.get_tx(&window_label).ok_or("Agent not running")?
     };
 
     tx.send(ACPCommand::Cancel)
@@ -69,12 +73,13 @@ pub(crate) async fn acp_cancel(
 #[tauri::command]
 pub(crate) async fn acp_respond_permission(
     state: State<'_, Mutex<ACPManager>>,
+    window_label: String,
     tool_call_id: String,
     option_id: String,
 ) -> Result<(), String> {
     let tx = {
         let manager = state.lock().map_err(|e| e.to_string())?;
-        manager.cmd_tx.clone().ok_or("Agent not running")?
+        manager.get_tx(&window_label).ok_or("Agent not running")?
     };
 
     tx.send(ACPCommand::RespondPermission { tool_call_id, option_id })
@@ -85,12 +90,13 @@ pub(crate) async fn acp_respond_permission(
 #[tauri::command]
 pub(crate) async fn acp_set_config_option(
     state: State<'_, Mutex<ACPManager>>,
+    window_label: String,
     config_id: String,
     value: String,
 ) -> Result<String, String> {
     let tx = {
         let manager = state.lock().map_err(|e| e.to_string())?;
-        manager.cmd_tx.clone().ok_or("Agent not running")?
+        manager.get_tx(&window_label).ok_or("Agent not running")?
     };
 
     let (resp_tx, resp_rx) = oneshot::channel();
@@ -104,8 +110,9 @@ pub(crate) async fn acp_set_config_option(
 #[tauri::command]
 pub(crate) async fn acp_stop_agent(
     state: State<'_, Mutex<ACPManager>>,
+    window_label: String,
 ) -> Result<(), String> {
     let mut manager = state.lock().map_err(|e| e.to_string())?;
-    manager.stop();
+    manager.stop(&window_label);
     Ok(())
 }

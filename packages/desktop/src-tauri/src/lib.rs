@@ -7,11 +7,13 @@ mod git;
 mod history;
 mod icon_themes;
 mod lsp;
+mod menu;
 mod search;
 mod terminal;
 mod watcher;
 
 use std::sync::Mutex;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -22,11 +24,32 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(Mutex::new(terminal::TerminalManager::new()))
-        .manage(Mutex::new(watcher::FileWatcherState { debouncer: None }))
+        .manage(Mutex::new(watcher::FileWatcherState::new()))
         .manage(Mutex::new(acp::ACPManager::new()))
-
         .manage(Mutex::new(mcp::McpState::new()))
         .manage(Mutex::new(lsp::LspManager::new()))
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let app_menu = menu::build_app_menu(&handle, &[], false)
+                .expect("Failed to build app menu");
+            app.set_menu(app_menu)?;
+
+            app.on_menu_event(move |_app, event| {
+                menu::handle_menu_event(&handle, &event);
+            });
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let label = window.label().to_string();
+                if let Some(state) = window.try_state::<Mutex<acp::ACPManager>>() {
+                    if let Ok(mut mgr) = state.inner().lock() {
+                        mgr.stop(&label);
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             fs::read_dir,
             fs::read_file,
@@ -70,6 +93,7 @@ pub fn run() {
             lsp::lsp_start,
             lsp::lsp_send,
             lsp::lsp_stop,
+            menu::update_recent_menu,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,9 +1,10 @@
 use agent_client_protocol as acp;
 use acp::Agent as _;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::OnceLock;
 use std::time::Instant;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -28,32 +29,37 @@ pub(crate) enum ACPCommand {
     Stop,
 }
 
-/// Manages the ACP agent process and communication channel
+/// Manages per-window ACP agent processes and communication channels
 pub(crate) struct ACPManager {
-    /// Channel to send commands to the ACP thread
-    pub cmd_tx: Option<mpsc::Sender<ACPCommand>>,
+    agents: HashMap<String, mpsc::Sender<ACPCommand>>,
 }
 
 impl ACPManager {
     pub fn new() -> Self {
-        Self { cmd_tx: None }
+        Self { agents: HashMap::new() }
     }
 
-    /// Start an ACP agent process and initialize the connection
+    /// Get the command channel for a specific window's agent
+    pub fn get_tx(&self, window_label: &str) -> Option<mpsc::Sender<ACPCommand>> {
+        self.agents.get(window_label).cloned()
+    }
+
+    /// Start an ACP agent process for a specific window
     pub fn start_agent(
         &mut self,
+        window_label: String,
         app: AppHandle,
         agent_path: String,
         agent_args: Vec<String>,
         cwd: String,
         load_session_id: Option<String>,
     ) -> Result<(), String> {
-        if self.cmd_tx.is_some() {
+        if self.agents.contains_key(&window_label) {
             return Err("Agent already running".to_string());
         }
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<ACPCommand>(32);
-        self.cmd_tx = Some(cmd_tx);
+        self.agents.insert(window_label.clone(), cmd_tx);
 
         // Spawn a dedicated thread with its own tokio runtime and LocalSet
         // because the ACP Client trait produces !Send futures
@@ -65,9 +71,11 @@ impl ACPManager {
 
             let local_set = tokio::task::LocalSet::new();
             local_set.block_on(&rt, async move {
-                if let Err(e) = run_acp_session(app.clone(), agent_path, agent_args, cwd, cmd_rx, load_session_id).await {
+                if let Err(e) = run_acp_session(app.clone(), window_label.clone(), agent_path, agent_args, cwd, cmd_rx, load_session_id).await {
                     eprintln!("[acp] session error: {}", e);
-                    let _ = app.emit("acp-error", e);
+                    if let Some(win) = app.get_webview_window(&window_label) {
+                        let _ = win.emit("acp-error", e);
+                    }
                 }
             });
         });
@@ -75,8 +83,9 @@ impl ACPManager {
         Ok(())
     }
 
-    pub fn stop(&mut self) {
-        if let Some(tx) = self.cmd_tx.take() {
+    /// Stop the agent for a specific window
+    pub fn stop(&mut self, window_label: &str) {
+        if let Some(tx) = self.agents.remove(window_label) {
             let _ = tx.try_send(ACPCommand::Stop);
         }
     }
@@ -84,6 +93,7 @@ impl ACPManager {
 
 async fn run_acp_session(
     app: AppHandle,
+    window_label: String,
     agent_path: String,
     agent_args: Vec<String>,
     cwd: String,
@@ -91,6 +101,13 @@ async fn run_acp_session(
     load_session_id: Option<String>,
 ) -> Result<(), String> {
     let t_total = Instant::now();
+
+    // Helper: emit event to the specific window only
+    let emit_to_window = |event: &str, payload: serde_json::Value| {
+        if let Some(win) = app.get_webview_window(&window_label) {
+            let _ = win.emit(event, payload);
+        }
+    };
 
     // Resolve shell PATH (macOS apps don't inherit shell environment)
     let t0 = Instant::now();
@@ -119,7 +136,7 @@ async fn run_acp_session(
     let stdout = child.stdout.take()
         .ok_or("Failed to get agent stdout")?;
 
-    let client = Rc::new(HelmClient::new(app.clone()));
+    let client = Rc::new(HelmClient::new(app.clone(), window_label.clone()));
 
     // Create the ACP connection (wrapped in Rc so prompt futures can share it)
     let (conn, handle_io) = acp::ClientSideConnection::new(
@@ -160,7 +177,7 @@ async fn run_acp_session(
     eprintln!("[acp timing] initialize: {}ms", t2.elapsed().as_millis());
 
     eprintln!("[acp] initialized with agent: {:?}", init_response.agent_info);
-    let _ = app.emit("acp-connected", serde_json::to_value(&init_response.agent_info).unwrap_or_default());
+    emit_to_window("acp-connected", serde_json::to_value(&init_response.agent_info).unwrap_or_default());
 
     // Extract terminal-auth command from auth methods (if available)
     let terminal_auth_cmd = extract_terminal_auth(&init_response.auth_methods);
@@ -192,9 +209,9 @@ async fn run_acp_session(
                     eprintln!("[acp] auth required, attempting terminal-auth login...");
 
                     if let Some(ref ta) = terminal_auth_cmd {
-                        let _ = app.emit("acp-auth-started", ());
+                        emit_to_window("acp-auth-started", serde_json::Value::Null);
                         run_terminal_auth(ta, shell_path.as_deref()).await?;
-                        let _ = app.emit("acp-auth-completed", ());
+                        emit_to_window("acp-auth-completed", serde_json::Value::Null);
 
                         // Retry new_session after authentication
                         conn.new_session(acp::NewSessionRequest::new(cwd_path))
@@ -219,11 +236,11 @@ async fn run_acp_session(
     eprintln!("[acp timing] total startup: {}ms", t_total.elapsed().as_millis());
 
     // Emit the agent's session ID to the frontend
-    let _ = app.emit("acp-session-id", session_id.to_string());
+    emit_to_window("acp-session-id", serde_json::Value::String(session_id.to_string()));
 
     // Emit session config options if available
     if let Some(ref config_options) = config_options {
-        let _ = app.emit("acp-config-options", serde_json::to_value(config_options).unwrap_or_default());
+        emit_to_window("acp-config-options", serde_json::to_value(config_options).unwrap_or_default());
     }
 
     // Process commands from Tauri
@@ -305,7 +322,7 @@ async fn run_acp_session(
                         match conn.set_session_config_option(req).await {
                             Ok(response) => {
                                 // Emit updated config options to frontend
-                                let _ = app.emit("acp-config-options", serde_json::to_value(&response.config_options).unwrap_or_default());
+                                emit_to_window("acp-config-options", serde_json::to_value(&response.config_options).unwrap_or_default());
                                 let json = serde_json::to_string(&response.config_options).unwrap_or_default();
                                 let _ = resp.send(Ok(json));
                             }
@@ -325,7 +342,7 @@ async fn run_acp_session(
     // Clean up
     drop(conn);  // Rc — drops our reference
     let _ = child.kill().await;
-    let _ = app.emit("acp-disconnected", ());
+    emit_to_window("acp-disconnected", serde_json::Value::Null);
     eprintln!("[acp] session ended");
 
     Ok(())

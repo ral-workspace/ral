@@ -1,7 +1,7 @@
 use agent_client_protocol as acp;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::oneshot;
 
 use super::terminal::ACPTerminalManager;
@@ -13,16 +13,25 @@ struct PendingPermission {
 
 pub(crate) struct HelmClient {
     app: AppHandle,
+    window_label: String,
     pending_permissions: RefCell<HashMap<String, PendingPermission>>,
     terminals: RefCell<ACPTerminalManager>,
 }
 
 impl HelmClient {
-    pub fn new(app: AppHandle) -> Self {
+    pub fn new(app: AppHandle, window_label: String) -> Self {
         Self {
             app,
+            window_label,
             pending_permissions: RefCell::new(HashMap::new()),
             terminals: RefCell::new(ACPTerminalManager::new()),
+        }
+    }
+
+    /// Emit an event to this client's window only
+    fn emit_to_window(&self, event: &str, payload: impl serde::Serialize + Clone) {
+        if let Some(win) = self.app.get_webview_window(&self.window_label) {
+            let _ = win.emit(event, payload);
         }
     }
 
@@ -45,7 +54,7 @@ impl acp::Client for HelmClient {
         args: acp::SessionNotification,
     ) -> acp::Result<()> {
         let payload = serde_json::to_value(&args).unwrap_or_default();
-        let _ = self.app.emit("acp-update", payload);
+        self.emit_to_window("acp-update", payload);
         Ok(())
     }
 
@@ -66,7 +75,7 @@ impl acp::Client for HelmClient {
 
         // Emit permission request to frontend
         let payload = serde_json::to_value(&args).unwrap_or_default();
-        let _ = self.app.emit("acp-permission", payload);
+        self.emit_to_window("acp-permission", payload);
 
         // Wait for user response
         match rx.await {
