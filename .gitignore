@@ -4,3 +4,4 @@ target/
 .turbo/
 .claude/
 .serena/
+.DS_Store
