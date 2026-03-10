@@ -39,6 +39,17 @@ packages/
   ui/          Shared UI components
 ```
 
+## Prerequisites
+
+| Tool | Version |
+| --- | --- |
+| [Node.js](https://nodejs.org/) | >= 20 |
+| [pnpm](https://pnpm.io/) | >= 10 |
+| [Rust](https://rustup.rs/) | stable (latest) |
+| [Tauri CLI](https://v2.tauri.app/) | v2 |
+
+Platform-specific dependencies (system libraries, etc.) are listed in the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/).
+
 ## Development
 
 ```bash
