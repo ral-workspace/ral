@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { useCodeMirror } from "../hooks/use-codemirror";
+import { EditorLoadingState, EditorErrorState } from "./common/editor-states";
 
 interface CodeMirrorEditorProps {
   filePath: string;
@@ -10,19 +11,11 @@ export function CodeMirrorEditor({ filePath }: CodeMirrorEditorProps) {
   const { loading, error } = useCodeMirror({ filePath, containerRef });
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <span className="text-xs text-muted-foreground">Loading...</span>
-      </div>
-    );
+    return <EditorLoadingState />;
   }
 
   if (error) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <span className="text-xs text-destructive">{error}</span>
-      </div>
-    );
+    return <EditorErrorState detail={error} />;
   }
 
   return <div ref={containerRef} className="h-full" />;

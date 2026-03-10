@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTheme } from "next-themes";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import { Spinner } from "@ral/ui";
 import { useEditorStore } from "../../stores";
+import { EditorLoadingState } from "../common/editor-states";
 import { MarkdownToolbar } from "./markdown-toolbar";
 
 import "@blocknote/core/fonts/inter.css";
@@ -108,12 +108,7 @@ export function MarkdownEditor({ filePath }: MarkdownEditorProps) {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
-        <Spinner className="size-5" />
-        <span className="text-sm">Loading...</span>
-      </div>
-    );
+    return <EditorLoadingState />;
   }
 
   return (

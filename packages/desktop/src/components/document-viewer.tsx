@@ -9,8 +9,8 @@ import {
   IconZoomIn,
   IconZoomOut,
 } from "@tabler/icons-react";
-import { Spinner } from "@ral/ui";
 import { isPdfFile, isPptxFile } from "../lib/file-type";
+import { EditorLoadingState, EditorErrorState } from "./common/editor-states";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
@@ -70,23 +70,11 @@ function PptxDocumentViewer({ filePath }: { filePath: string }) {
   }, [filePath]);
 
   if (status === "loading") {
-    return (
-      <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
-        <Spinner className="size-5" />
-        <span className="text-sm">Loading presentation…</span>
-      </div>
-    );
+    return <EditorLoadingState message="Loading content..." />;
   }
 
   if (status === "error") {
-    return (
-      <div className="flex h-full items-center justify-center p-8">
-        <div className="max-w-md space-y-2 text-center">
-          <p className="text-sm font-medium text-destructive">Failed to open presentation</p>
-          <p className="whitespace-pre-wrap text-xs text-muted-foreground">{error}</p>
-        </div>
-      </div>
-    );
+    return <EditorErrorState detail={error} />;
   }
 
   return (
@@ -254,27 +242,11 @@ function PdfDocumentViewer({ filePath }: { filePath: string }) {
   }, [renderPage]);
 
   if (state.status === "loading") {
-    return (
-      <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
-        <Spinner className="size-5" />
-        <span className="text-sm">{state.message}</span>
-      </div>
-    );
+    return <EditorLoadingState message="Loading content..." />;
   }
 
   if (state.status === "error") {
-    return (
-      <div className="flex h-full items-center justify-center p-8">
-        <div className="max-w-md space-y-2 text-center">
-          <p className="text-sm font-medium text-destructive">
-            Failed to open document
-          </p>
-          <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-            {state.message}
-          </p>
-        </div>
-      </div>
-    );
+    return <EditorErrorState detail={state.message} />;
   }
 
   return (
