@@ -23,7 +23,8 @@
   "pnpm": {
     "overrides": {
       "fast-xml-parser": "5.4.2",
-      "serialize-javascript": ">=7.0.3"
+      "serialize-javascript": ">=7.0.3",
+      "dompurify": ">=3.3.2"
     }
   }
 }
