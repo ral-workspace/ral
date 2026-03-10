@@ -12,7 +12,14 @@ use tauri_plugin_cli::CliExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(feature = "e2e")]
+    {
+        builder = builder.plugin(tauri_plugin_webdriver::init());
+    }
+
+    builder
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // Second instance launched: open project in new window
             let path = args.get(1).cloned().and_then(|p| {

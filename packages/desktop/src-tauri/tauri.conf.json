@@ -28,6 +28,7 @@
         ]
       }
     ],
+    "withGlobalTauri": true,
     "security": {
       "csp": null,
       "assetProtocol": {

@@ -10,12 +10,18 @@
     "lint": "turbo lint",
     "clean": "turbo clean",
     "test": "turbo test",
-    "release": "./scripts/release.sh"
+    "release": "./scripts/release.sh",
+    "test:e2e": "pnpm --filter @ral/desktop test:e2e"
   },
   "devDependencies": {
     "turbo": "^2"
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.44"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-xml-parser": "5.4.2"
+    }
   }
 }

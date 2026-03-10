@@ -1,0 +1,12 @@
+name: Test Flow A
+enabled: true
+trigger:
+  manual: true
+permissions: []
+steps:
+  - id: step1
+    tool: echo
+    params:
+      message: "Hello from Project A"
+    approve: false
+output: []
