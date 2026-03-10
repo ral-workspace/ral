@@ -87,26 +87,6 @@ export const useJobStore = create<JobState>((set, get) => ({
   _init: async () => {
     await get().fetchJobs();
     await get().fetchHistory();
-
-    listen<{ job_id: string }>("scheduler-job-started", (event) => {
-      set((s) => {
-        const next = new Set(s.runningJobIds);
-        next.add(event.payload.job_id);
-        return { runningJobIds: next };
-      });
-    });
-
-    listen<JobRun>("scheduler-job-completed", (event) => {
-      const run = event.payload;
-      set((s) => {
-        const next = new Set(s.runningJobIds);
-        next.delete(run.job_id);
-        return {
-          runningJobIds: next,
-          history: [run, ...s.history].slice(0, 50),
-        };
-      });
-    });
   },
 
   fetchJobs: async () => {
@@ -161,3 +141,31 @@ export const useJobStore = create<JobState>((set, get) => ({
     await invoke("scheduler_cancel_job", { id });
   },
 }));
+
+// ── Event listeners (registered once at module load) ──
+
+function setupListeners() {
+  const { setState: set } = useJobStore;
+
+  listen<{ job_id: string }>("scheduler-job-started", (event) => {
+    set((s) => {
+      const next = new Set(s.runningJobIds);
+      next.add(event.payload.job_id);
+      return { runningJobIds: next };
+    });
+  });
+
+  listen<JobRun>("scheduler-job-completed", (event) => {
+    const run = event.payload;
+    set((s) => {
+      const next = new Set(s.runningJobIds);
+      next.delete(run.job_id);
+      return {
+        runningJobIds: next,
+        history: [run, ...s.history].slice(0, 50),
+      };
+    });
+  });
+}
+
+setupListeners();

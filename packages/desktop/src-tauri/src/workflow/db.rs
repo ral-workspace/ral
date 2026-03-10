@@ -53,6 +53,21 @@ impl WorkflowDb {
         .await
         .map_err(|e| format!("Failed to create index: {}", e))?;
 
+        // Clean up stale "running" runs from previous app session
+        let stale = sqlx::query(
+            r#"
+            UPDATE workflow_runs
+            SET status = 'cancelled', error = 'Interrupted by app restart'
+            WHERE status = 'running'
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Failed to clean stale runs: {}", e))?;
+        if stale.rows_affected() > 0 {
+            eprintln!("[workflow] cleaned {} stale running runs", stale.rows_affected());
+        }
+
         eprintln!("[workflow] DB initialized at {:?}", db_path);
         Ok(Self { pool })
     }

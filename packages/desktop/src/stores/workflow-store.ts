@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { useWorkspaceStore } from "./workspace-store";
 
 // ── Types ──
 
@@ -25,6 +26,16 @@ export interface StepDef {
   prompt?: string;
   params?: Record<string, unknown>;
   approve: boolean;
+  retry?: number;
+}
+
+export interface PendingApproval {
+  runId: string;
+  workflowId: string;
+  workflowName: string;
+  stepId: string;
+  stepTool?: string;
+  stepAgent?: string;
 }
 
 export interface OutputDef {
@@ -76,6 +87,7 @@ interface WorkflowState {
   workflows: WorkflowSummary[];
   runs: WorkflowRun[];
   runningWorkflows: Set<string>;
+  pendingApprovals: PendingApproval[];
   isLoading: boolean;
 
   _init: (projectPath: string) => Promise<void>;
@@ -83,6 +95,7 @@ interface WorkflowState {
   fetchRuns: (workflowId?: string) => Promise<void>;
   runWorkflow: (projectPath: string, workflowId: string) => Promise<void>;
   cancelWorkflow: (runId: string) => Promise<void>;
+  respondApproval: (runId: string, approved: boolean) => Promise<void>;
   toggleWorkflow: (
     projectPath: string,
     workflowId: string,
@@ -96,38 +109,21 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   workflows: [],
   runs: [],
   runningWorkflows: new Set(),
+  pendingApprovals: [],
   isLoading: false,
 
   _init: async (projectPath: string) => {
     await get().fetchWorkflows(projectPath);
     await get().fetchRuns();
 
-    listen<{ workflow_id: string; run_id: string }>(
-      "workflow-run-started",
-      (event) => {
-        set((s) => {
-          const next = new Set(s.runningWorkflows);
-          next.add(event.payload.workflow_id);
-          return { runningWorkflows: next };
-        });
-      },
-    );
+    // Sync runningWorkflows from actual DB state
+    const runs = get().runs;
+    const running = new Set<string>();
+    for (const r of runs) {
+      if (r.status === "running") running.add(r.workflow_id);
+    }
+    set({ runningWorkflows: running, pendingApprovals: [] });
 
-    listen<{ run_id: string; workflow_id: string; status: string }>(
-      "workflow-run-completed",
-      (event) => {
-        set((s) => {
-          const next = new Set(s.runningWorkflows);
-          next.delete(event.payload.workflow_id);
-          return { runningWorkflows: next };
-        });
-        // Refresh runs and workflow list
-        get().fetchRuns();
-        get().fetchWorkflows(projectPath);
-      },
-    );
-
-    // Start scheduler
     await get().startScheduler(projectPath);
   },
 
@@ -165,6 +161,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     await invoke("workflow_cancel", { runId });
   },
 
+  respondApproval: async (runId: string, approved: boolean) => {
+    await invoke("workflow_respond_approval", { runId, approved });
+  },
+
   toggleWorkflow: async (
     projectPath: string,
     workflowId: string,
@@ -194,3 +194,81 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }
   },
 }));
+
+// ── Event listeners (registered once at module load) ──
+
+function setupListeners() {
+  const { set, get } = { set: useWorkflowStore.setState, get: useWorkflowStore.getState };
+
+  listen<{ workflow_id: string; run_id: string }>(
+    "workflow-run-started",
+    (event) => {
+      set((s) => {
+        const next = new Set(s.runningWorkflows);
+        next.add(event.payload.workflow_id);
+        return { runningWorkflows: next };
+      });
+    },
+  );
+
+  listen<{ run_id: string; workflow_id: string; status: string }>(
+    "workflow-run-completed",
+    (event) => {
+      set((s) => {
+        const next = new Set(s.runningWorkflows);
+        next.delete(event.payload.workflow_id);
+        const approvals = s.pendingApprovals.filter(
+          (a) => a.runId !== event.payload.run_id,
+        );
+        return { runningWorkflows: next, pendingApprovals: approvals };
+      });
+      get().fetchRuns();
+      const projectPath = useWorkspaceStore.getState().projectPath;
+      if (projectPath) get().fetchWorkflows(projectPath);
+    },
+  );
+
+  listen<{
+    run_id: string;
+    workflow_id: string;
+    workflow_name: string;
+    step_id: string;
+    step_tool?: string;
+    step_agent?: string;
+  }>("workflow-approval-pending", (event) => {
+    const { run_id, workflow_id, workflow_name, step_id, step_tool, step_agent } =
+      event.payload;
+    set((s) => {
+      const exists = s.pendingApprovals.some(
+        (a) => a.runId === run_id && a.stepId === step_id,
+      );
+      if (exists) return s;
+      return {
+        pendingApprovals: [
+          ...s.pendingApprovals,
+          {
+            runId: run_id,
+            workflowId: workflow_id,
+            workflowName: workflow_name,
+            stepId: step_id,
+            stepTool: step_tool,
+            stepAgent: step_agent,
+          },
+        ],
+      };
+    });
+  });
+
+  listen<{ run_id: string; step_id: string; approved: boolean }>(
+    "workflow-approval-resolved",
+    (event) => {
+      set((s) => ({
+        pendingApprovals: s.pendingApprovals.filter(
+          (a) => a.runId !== event.payload.run_id || a.stepId !== event.payload.step_id,
+        ),
+      }));
+    },
+  );
+}
+
+setupListeners();

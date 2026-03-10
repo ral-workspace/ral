@@ -5,6 +5,8 @@ import {
   IconCheck,
   IconX,
   IconLoader2,
+  IconShieldCheck,
+  IconShieldX,
 } from "@tabler/icons-react";
 import {
   Item,
@@ -70,11 +72,13 @@ export function WorkflowsView() {
     workflows,
     runs,
     runningWorkflows,
+    pendingApprovals,
     isLoading,
     _init,
     toggleWorkflow,
     runWorkflow,
     cancelWorkflow,
+    respondApproval,
   } = useWorkflowStore();
 
   useEffect(() => {
@@ -103,6 +107,53 @@ export function WorkflowsView() {
           AI.
         </p>
       </div>
+
+      {/* Pending Approvals */}
+      {pendingApprovals.length > 0 && (
+        <div className="space-y-2">
+          {pendingApprovals.map((approval) => (
+            <div
+              key={`${approval.runId}:${approval.stepId}`}
+              className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium">Approval required</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {approval.workflowName}
+                    </span>
+                    {" "}&middot; Step:{" "}
+                    <span className="font-mono">{approval.stepId}</span>
+                    {approval.stepTool && <> &middot; Tool: {approval.stepTool}</>}
+                    {approval.stepAgent && <> &middot; Agent: {approval.stepAgent}</>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="gap-1 text-green-600 hover:bg-green-500/10 hover:text-green-600"
+                    onClick={() => respondApproval(approval.runId, true)}
+                  >
+                    <IconShieldCheck size={14} />
+                    Approve
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="gap-1 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                    onClick={() => respondApproval(approval.runId, false)}
+                  >
+                    <IconShieldX size={14} />
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Workflow List */}
       <div>

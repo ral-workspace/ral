@@ -202,6 +202,7 @@ pub fn run() {
             workflow::workflow_toggle,
             workflow::workflow_start_scheduler,
             workflow::workflow_stop_scheduler,
+            workflow::workflow_respond_approval,
             core::cli::install_cli,
             core::cli::uninstall_cli,
         ])

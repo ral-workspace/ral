@@ -129,6 +129,8 @@ pub struct StepDef {
     #[serde(default)]
     pub approve: bool,
     #[serde(default)]
+    pub retry: Option<u32>,
+    #[serde(default)]
     pub allowed_tools: Option<Vec<String>>,
 }
 

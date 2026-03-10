@@ -185,3 +185,14 @@ pub(crate) async fn workflow_stop_scheduler(
     engine.stop_scheduler();
     Ok(())
 }
+
+/// Respond to a pending approval request
+#[tauri::command]
+pub(crate) async fn workflow_respond_approval(
+    engine_state: State<'_, Arc<Mutex<WorkflowEngine>>>,
+    run_id: String,
+    approved: bool,
+) -> Result<(), String> {
+    let mut engine = engine_state.lock().map_err(|e| e.to_string())?;
+    engine.respond_approval(&run_id, approved)
+}

@@ -3,16 +3,18 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
 
 use super::db::WorkflowDb;
 use super::steps;
 use super::template::TemplateContext;
-use super::types::{StepResult, WorkflowDef, WorkflowRun};
+use super::types::{StepDef, StepResult, WorkflowDef, WorkflowRun};
 
 pub struct WorkflowEngine {
     /// Active run cancellation channels: run_id → sender
     running: HashMap<String, broadcast::Sender<()>>,
+    /// Pending approval responses: "run_id:step_id" → oneshot sender
+    pending_approvals: HashMap<String, oneshot::Sender<bool>>,
     /// Scheduler cancel handle
     scheduler_cancel: Option<broadcast::Sender<()>>,
 }
@@ -21,6 +23,7 @@ impl WorkflowEngine {
     pub fn new() -> Self {
         Self {
             running: HashMap::new(),
+            pending_approvals: HashMap::new(),
             scheduler_cancel: None,
         }
     }
@@ -44,6 +47,35 @@ impl WorkflowEngine {
         self.running.remove(run_id);
     }
 
+    /// Register an approval request and return the receiver to await the response.
+    pub fn register_approval(&mut self, run_id: &str, step_id: &str) -> oneshot::Receiver<bool> {
+        let key = format!("{}:{}", run_id, step_id);
+        let (tx, rx) = oneshot::channel();
+        self.pending_approvals.insert(key, tx);
+        rx
+    }
+
+    /// Respond to a pending approval. Returns Err if no pending approval found.
+    pub fn respond_approval(&mut self, run_id: &str, approved: bool) -> Result<(), String> {
+        // Find the first pending approval for this run_id
+        let key = self
+            .pending_approvals
+            .keys()
+            .find(|k| k.starts_with(&format!("{}:", run_id)))
+            .cloned();
+
+        if let Some(key) = key {
+            if let Some(tx) = self.pending_approvals.remove(&key) {
+                let _ = tx.send(approved);
+                Ok(())
+            } else {
+                Err("Approval sender already consumed".to_string())
+            }
+        } else {
+            Err(format!("No pending approval for run '{}'", run_id))
+        }
+    }
+
     pub fn stop_scheduler(&mut self) {
         if let Some(tx) = self.scheduler_cancel.take() {
             let _ = tx.send(());
@@ -52,6 +84,22 @@ impl WorkflowEngine {
 
     pub fn set_scheduler_cancel(&mut self, tx: broadcast::Sender<()>) {
         self.scheduler_cancel = Some(tx);
+    }
+}
+
+/// Execute a single step (tool or agent), used by retry loop.
+async fn execute_step(
+    step: &StepDef,
+    ctx: &TemplateContext,
+    app: &AppHandle,
+    project_path: &str,
+) -> Result<serde_json::Value, String> {
+    if step.tool.is_some() {
+        steps::execute_tool_step(step, ctx, app).await
+    } else if step.agent.is_some() {
+        steps::execute_agent_step(step, ctx, project_path).await
+    } else {
+        Err(format!("Step '{}' has neither tool nor agent", step.id))
     }
 }
 
@@ -113,15 +161,100 @@ pub async fn execute_workflow(
             break;
         }
 
+        // Approval gate
+        if step.approve {
+            let _ = app.emit(
+                "workflow-approval-pending",
+                json!({
+                    "run_id": run_id,
+                    "workflow_id": workflow_id,
+                    "workflow_name": workflow.name,
+                    "step_id": step.id,
+                    "step_tool": step.tool,
+                    "step_agent": step.agent,
+                }),
+            );
+
+            let approval_rx = {
+                let mut eng = engine.lock().map_err(|e| e.to_string())?;
+                eng.register_approval(run_id, &step.id)
+            };
+
+            // Wait for either approval response or cancellation
+            let approved = tokio::select! {
+                result = approval_rx => {
+                    match result {
+                        Ok(v) => v,
+                        Err(_) => false, // sender dropped = treat as rejected
+                    }
+                }
+                _ = cancel_rx.recv() => {
+                    // Cancelled while waiting for approval
+                    false
+                }
+            };
+
+            // Clean up approval state
+            {
+                let mut eng = engine.lock().map_err(|e| e.to_string())?;
+                let key = format!("{}:{}", run_id, step.id);
+                eng.pending_approvals.remove(&key);
+            }
+
+            // Emit approval resolved event
+            let _ = app.emit(
+                "workflow-approval-resolved",
+                json!({
+                    "run_id": run_id,
+                    "step_id": step.id,
+                    "approved": approved,
+                }),
+            );
+
+            if !approved {
+                run.status = "cancelled".to_string();
+                run.error = Some(format!("Step '{}' was rejected", step.id));
+                failed = true;
+                break;
+            }
+        }
+
         let step_start = chrono::Utc::now().to_rfc3339();
 
-        let result = if step.tool.is_some() {
-            steps::execute_tool_step(step, &ctx, app).await
-        } else if step.agent.is_some() {
-            steps::execute_agent_step(step, &ctx, project_path).await
-        } else {
-            Err(format!("Step '{}' has neither tool nor agent", step.id))
-        };
+        // Retry loop
+        let max_retries = step.retry.unwrap_or(0);
+        let mut last_error: Option<String> = None;
+        let mut result: Result<serde_json::Value, String> = Err("not executed".to_string());
+
+        for attempt in 0..=max_retries {
+            // Exponential backoff for retries
+            if attempt > 0 {
+                let delay_secs = 2u64.pow(attempt - 1);
+                eprintln!(
+                    "[workflow] step '{}' retry {}/{} after {}s",
+                    step.id, attempt, max_retries, delay_secs
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+
+                // Check cancellation before retry
+                if cancel_rx.try_recv().is_ok() {
+                    run.status = "cancelled".to_string();
+                    run.error = Some("Cancelled by user".to_string());
+                    failed = true;
+                    break;
+                }
+            }
+
+            result = execute_step(step, &ctx, app, project_path).await;
+            if result.is_ok() {
+                break;
+            }
+            last_error = result.as_ref().err().cloned();
+        }
+
+        if failed {
+            break;
+        }
 
         let step_end = chrono::Utc::now().to_rfc3339();
 
@@ -141,16 +274,17 @@ pub async fn execute_workflow(
                 });
             }
             Err(e) => {
+                let error_msg = last_error.unwrap_or(e);
                 run.steps.push(StepResult {
                     step_id: step.id.clone(),
                     status: "failure".to_string(),
                     result: None,
-                    error: Some(e.clone()),
+                    error: Some(error_msg.clone()),
                     started_at: step_start,
                     finished_at: step_end,
                 });
                 run.status = "failure".to_string();
-                run.error = Some(format!("Step '{}' failed: {}", step.id, e));
+                run.error = Some(format!("Step '{}' failed: {}", step.id, error_msg));
                 failed = true;
                 break;
             }
