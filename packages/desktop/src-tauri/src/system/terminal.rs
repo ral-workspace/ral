@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 struct TerminalInstance {
@@ -12,9 +13,17 @@ struct TerminalInstance {
     child: Box<dyn portable_pty::Child + Send + Sync>,
 }
 
+struct ProcessNameCache {
+    name: String,
+    fetched_at: Instant,
+}
+
+const PROCESS_NAME_TTL: Duration = Duration::from_secs(1);
+
 pub(crate) struct TerminalManager {
     terminals: HashMap<u32, TerminalInstance>,
     next_id: u32,
+    process_name_cache: HashMap<u32, ProcessNameCache>,
 }
 
 impl TerminalManager {
@@ -22,6 +31,7 @@ impl TerminalManager {
         Self {
             terminals: HashMap::new(),
             next_id: 1,
+            process_name_cache: HashMap::new(),
         }
     }
 }
@@ -189,6 +199,7 @@ pub(crate) fn kill_terminal(state: State<'_, Mutex<TerminalManager>>, id: u32) -
     if let Some(mut terminal) = manager.terminals.remove(&id) {
         let _ = terminal.child.kill();
     }
+    manager.process_name_cache.remove(&id);
     Ok(())
 }
 
@@ -197,7 +208,15 @@ pub(crate) fn get_terminal_process_name(
     state: State<'_, Mutex<TerminalManager>>,
     id: u32,
 ) -> Result<String, String> {
-    let manager = state.lock().map_err(|e| e.to_string())?;
+    let mut manager = state.lock().map_err(|e| e.to_string())?;
+
+    // Return cached result if within TTL
+    if let Some(cached) = manager.process_name_cache.get(&id) {
+        if cached.fetched_at.elapsed() < PROCESS_NAME_TTL {
+            return Ok(cached.name.clone());
+        }
+    }
+
     let terminal = manager
         .terminals
         .get(&id)
@@ -208,7 +227,12 @@ pub(crate) fn get_terminal_process_name(
         .process_id()
         .ok_or_else(|| "No process ID".to_string())?;
 
-    Ok(foreground_process_name(shell_pid))
+    let name = foreground_process_name(shell_pid);
+    manager.process_name_cache.insert(id, ProcessNameCache {
+        name: name.clone(),
+        fetched_at: Instant::now(),
+    });
+    Ok(name)
 }
 
 /// Get the foreground process name for a shell PID.

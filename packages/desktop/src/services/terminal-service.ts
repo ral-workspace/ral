@@ -111,8 +111,15 @@ class TerminalService {
       this.stopProcessNamePolling();
       return;
     }
+
+    // Only poll instances in the active (visible) group
+    const activeGroup = this.activeGroupId != null ? this.groups.get(this.activeGroupId) : null;
+    if (!activeGroup) return;
+
     let changed = false;
-    for (const [, instance] of this.instances) {
+    for (const instId of activeGroup.instanceIds) {
+      const instance = this.instances.get(instId);
+      if (!instance) continue;
       try {
         const name = await invoke<string>("get_terminal_process_name", { id: instance.ptyId });
         if (name !== instance.processName) {
