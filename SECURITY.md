@@ -6,7 +6,7 @@ If you discover a security vulnerability in Ral, please report it responsibly.
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, use [GitHub Security Advisories](https://github.com/cohaku-ai/ral/security/advisories/new) to report privately.
+Instead, use [GitHub Security Advisories](https://github.com/ral-workspace/ral/security/advisories/new) to report privately.
 
 Include:
 - A description of the vulnerability

@@ -9,9 +9,9 @@ const OFFICIAL_URL =
   "https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/.claude-plugin/marketplace.json";
 
 const BUILTIN_MARKETPLACE = "ral-plugins";
-const BUILTIN_REPO = "cohaku-ai/ral-plugins";
+const BUILTIN_REPO = "ral-workspace/ral-plugins";
 const BUILTIN_URL =
-  "https://raw.githubusercontent.com/cohaku-ai/ral-plugins/main/.claude-plugin/marketplace.json";
+  "https://raw.githubusercontent.com/ral-workspace/ral-plugins/main/.claude-plugin/marketplace.json";
 
 export interface MarketplacePlugin {
   name: string;

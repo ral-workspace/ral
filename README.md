@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cohaku-ai/ral/releases"><img alt="Release" src="https://img.shields.io/github/v/release/cohaku-ai/ral?color=%23D97706&labelColor=%2327272a"></a>
-  <a href="https://github.com/cohaku-ai/ral/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-%23D97706?labelColor=%2327272a"></a>
-  <a href="https://github.com/cohaku-ai/ral"><img alt="GitHub stars" src="https://img.shields.io/github/stars/cohaku-ai/ral?color=%23D97706&labelColor=%2327272a"></a>
+  <a href="https://github.com/ral-workspace/ral/releases"><img alt="Release" src="https://img.shields.io/github/v/release/ral-workspace/ral?color=%23D97706&labelColor=%2327272a"></a>
+  <a href="https://github.com/ral-workspace/ral/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-%23D97706?labelColor=%2327272a"></a>
+  <a href="https://github.com/ral-workspace/ral"><img alt="GitHub stars" src="https://img.shields.io/github/stars/ral-workspace/ral?color=%23D97706&labelColor=%2327272a"></a>
 </p>
 
 <br/>
@@ -30,7 +30,7 @@ No terminal. No config files. Just open and work.
 
 - **AI Chat** — Claude-powered assistant via [ACP](https://github.com/anthropics/agent-control-protocol) with tool use, file editing, and MCP integration
 - **Workflows** — Automate multi-step AI + MCP pipelines with simple YAML definitions
-- **Plugins** — Extend with [first-party plugins](https://github.com/cohaku-ai/ral-plugins) for databases, presentations, spreadsheets, and more
+- **Plugins** — Extend with [first-party plugins](https://github.com/ral-workspace/ral-plugins) for databases, presentations, spreadsheets, and more
 - **Native & Fast** — Rust backend via Tauri v2. No Electron. Lightweight and responsive
 - **Open Source** — Apache 2.0 licensed. Build on it, extend it, make it yours
 
@@ -50,7 +50,7 @@ Platform-specific dependencies are listed in the [Tauri v2 prerequisites](https:
 ### Install & Run
 
 ```bash
-git clone https://github.com/cohaku-ai/ral.git
+git clone https://github.com/ral-workspace/ral.git
 cd ral
 pnpm install
 pnpm dev

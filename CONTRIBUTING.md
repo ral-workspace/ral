@@ -54,7 +54,7 @@ cargo check
 
 ## Reporting Issues
 
-- Use [GitHub Issues](https://github.com/cohaku-ai/ral/issues) to report bugs or request features
+- Use [GitHub Issues](https://github.com/ral-workspace/ral/issues) to report bugs or request features
 - Include steps to reproduce, expected behavior, and actual behavior
 - Include your OS, Node.js version, and Rust version if relevant
 
