@@ -1,19 +1,10 @@
 mod acp;
+mod core;
+mod editor;
 mod mcp;
-mod context_menu;
-mod document;
-mod fs;
-mod git;
-mod history;
-mod icon_themes;
-mod lsp;
-mod menu;
-mod plugins;
 mod scheduler;
-mod search;
+mod system;
 mod workflow;
-mod terminal;
-mod watcher;
 
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -27,21 +18,21 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
-        .manage(Mutex::new(terminal::TerminalManager::new()))
-        .manage(Mutex::new(watcher::FileWatcherState::new()))
+        .manage(Mutex::new(system::terminal::TerminalManager::new()))
+        .manage(Mutex::new(system::watcher::FileWatcherState::new()))
         .manage(Mutex::new(acp::ACPManager::new()))
         .manage(Mutex::new(mcp::McpState::new()))
-        .manage(Mutex::new(lsp::LspManager::new()))
+        .manage(Mutex::new(editor::lsp::LspManager::new()))
         .manage(Arc::new(Mutex::new(scheduler::SchedulerManager::new())))
         .manage(Arc::new(Mutex::new(workflow::engine::WorkflowEngine::new())))
         .setup(|app| {
             let handle = app.handle().clone();
-            let app_menu = menu::build_app_menu(&handle, &[], false)
+            let app_menu = core::menu::build_app_menu(&handle, &[], false)
                 .expect("Failed to build app menu");
             app.set_menu(app_menu)?;
 
             app.on_menu_event(move |_app, event| {
-                menu::handle_menu_event(&handle, &event);
+                core::menu::handle_menu_event(&handle, &event);
             });
 
             // Start scheduler loop
@@ -77,7 +68,7 @@ pub fn run() {
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    plugins::ensure_builtin_plugins(app_handle).await;
+                    core::plugins::ensure_builtin_plugins(app_handle).await;
                 });
             }
 
@@ -94,28 +85,28 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            fs::read_dir,
-            fs::read_file,
-            fs::write_file,
-            fs::create_file,
-            fs::append_file,
-            fs::create_dir,
-            fs::rename_path,
-            fs::delete_path,
-            fs::run_command,
-            search::search_text,
-            search::search_files,
-            watcher::start_file_watcher,
-            watcher::stop_file_watcher,
-            terminal::spawn_terminal,
-            terminal::write_terminal,
-            terminal::resize_terminal,
-            terminal::kill_terminal,
-            terminal::get_terminal_process_name,
-            terminal::list_shells,
-            icon_themes::ensure_icon_themes,
-            icon_themes::list_icon_themes,
-            icon_themes::load_icon_theme,
+            system::fs::read_dir,
+            system::fs::read_file,
+            system::fs::write_file,
+            system::fs::create_file,
+            system::fs::append_file,
+            system::fs::create_dir,
+            system::fs::rename_path,
+            system::fs::delete_path,
+            system::fs::run_command,
+            system::search::search_text,
+            system::search::search_files,
+            system::watcher::start_file_watcher,
+            system::watcher::stop_file_watcher,
+            system::terminal::spawn_terminal,
+            system::terminal::write_terminal,
+            system::terminal::resize_terminal,
+            system::terminal::kill_terminal,
+            system::terminal::get_terminal_process_name,
+            system::terminal::list_shells,
+            core::icon_themes::ensure_icon_themes,
+            core::icon_themes::list_icon_themes,
+            core::icon_themes::load_icon_theme,
             acp::acp_start_agent,
             acp::acp_load_session,
             acp::acp_send_prompt,
@@ -123,20 +114,20 @@ pub fn run() {
             acp::acp_respond_permission,
             acp::acp_set_config_option,
             acp::acp_stop_agent,
-            document::convert_to_pdf,
-            context_menu::show_context_menu,
+            editor::document::convert_to_pdf,
+            core::context_menu::show_context_menu,
             mcp::mcp_connect,
             mcp::mcp_read_resource,
-            git::git_diff_lines,
-            history::add_history_entry,
-            history::get_history_entries,
-            history::get_history_content,
-            history::delete_history_entry,
-            history::restore_history_entry,
-            lsp::lsp_start,
-            lsp::lsp_send,
-            lsp::lsp_stop,
-            menu::update_recent_menu,
+            editor::git::git_diff_lines,
+            editor::history::add_history_entry,
+            editor::history::get_history_entries,
+            editor::history::get_history_content,
+            editor::history::delete_history_entry,
+            editor::history::restore_history_entry,
+            editor::lsp::lsp_start,
+            editor::lsp::lsp_send,
+            editor::lsp::lsp_stop,
+            core::menu::update_recent_menu,
             scheduler::scheduler_list_jobs,
             scheduler::scheduler_create_job,
             scheduler::scheduler_update_job,

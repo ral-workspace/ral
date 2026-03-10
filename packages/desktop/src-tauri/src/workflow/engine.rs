@@ -1,17 +1,14 @@
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
-use serde_json::{json, Value};
+use serde_json::json;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::broadcast;
 
-use crate::mcp;
-
 use super::db::WorkflowDb;
+use super::steps;
 use super::template::TemplateContext;
-use super::types::{OutputDef, StepDef, StepResult, WorkflowDef, WorkflowRun};
+use super::types::{StepResult, WorkflowDef, WorkflowRun};
 
 pub struct WorkflowEngine {
     /// Active run cancellation channels: run_id → sender
@@ -119,9 +116,9 @@ pub async fn execute_workflow(
         let step_start = chrono::Utc::now().to_rfc3339();
 
         let result = if step.tool.is_some() {
-            execute_tool_step(step, &ctx, app).await
+            steps::execute_tool_step(step, &ctx, app).await
         } else if step.agent.is_some() {
-            execute_agent_step(step, &ctx, project_path).await
+            steps::execute_agent_step(step, &ctx, project_path).await
         } else {
             Err(format!("Step '{}' has neither tool nor agent", step.id))
         };
@@ -172,7 +169,7 @@ pub async fn execute_workflow(
 
     // Execute outputs (only on success)
     if !failed {
-        if let Err(e) = execute_outputs(&workflow.output, &ctx, project_path).await {
+        if let Err(e) = steps::execute_outputs(&workflow.output, &ctx, project_path).await {
             eprintln!("[workflow] output error: {}", e);
             // Non-fatal: workflow still succeeded
         }
@@ -204,184 +201,6 @@ pub async fn execute_workflow(
     Ok(())
 }
 
-/// Execute a tool step (MCP JSON-RPC call via global McpState)
-async fn execute_tool_step(
-    step: &StepDef,
-    ctx: &TemplateContext,
-    app: &AppHandle,
-) -> Result<Value, String> {
-    use tauri::Manager;
-
-    let tool_path = step
-        .tool
-        .as_deref()
-        .ok_or("Missing tool field")?;
-
-    // Parse "mcp/server_name/tool_name"
-    let parts: Vec<&str> = tool_path.splitn(3, '/').collect();
-    if parts.len() != 3 || parts[0] != "mcp" {
-        return Err(format!(
-            "Invalid tool path '{}'. Expected 'mcp/server_name/tool_name'",
-            tool_path
-        ));
-    }
-    let server_name = parts[1];
-    let tool_name = parts[2];
-
-    // Resolve server URL from global McpState registry
-    let mcp_state = app.state::<Mutex<mcp::McpState>>();
-    let (http, server_url) = {
-        let s = mcp_state.lock().map_err(|e| e.to_string())?;
-        let url = s
-            .get_server_url(server_name)
-            .ok_or_else(|| format!("MCP server '{}' not connected. Connect it in Settings first.", server_name))?;
-        (s.http_client(), url)
-    };
-
-    // Initialize a new MCP session for this workflow step
-    let (_, session_id) = mcp::jsonrpc_request(
-        &http,
-        &server_url,
-        None,
-        "initialize",
-        json!({
-            "protocolVersion": "2025-11-21",
-            "capabilities": {},
-            "clientInfo": { "name": "Helm Workflow", "version": "1.0.0" }
-        }),
-        1,
-    )
-    .await?;
-
-    // Send initialized notification
-    mcp::jsonrpc_notify(&http, &server_url, session_id.as_deref(), "notifications/initialized")
-        .await?;
-
-    // Render params
-    let rendered_params = step
-        .params
-        .as_ref()
-        .map(|p| ctx.render_value(p))
-        .unwrap_or(json!({}));
-
-    // Call tool
-    let (result, _) = mcp::jsonrpc_request(
-        &http,
-        &server_url,
-        session_id.as_deref(),
-        "tools/call",
-        json!({
-            "name": tool_name,
-            "arguments": rendered_params,
-        }),
-        2,
-    )
-    .await?;
-
-    Ok(result)
-}
-
-/// Execute an agent step (claude -p subprocess)
-async fn execute_agent_step(
-    step: &StepDef,
-    ctx: &TemplateContext,
-    project_path: &str,
-) -> Result<Value, String> {
-    let prompt = step
-        .prompt
-        .as_deref()
-        .ok_or("Missing prompt field for agent step")?;
-
-    let rendered_prompt = ctx.render(prompt);
-
-    // Resolve PATH (macOS GUI apps don't inherit shell PATH)
-    let path_env = resolve_shell_path();
-
-    let mut cmd = tokio::process::Command::new("claude");
-    cmd.args(["-p", &rendered_prompt]);
-    cmd.args(["--output-format", "text"]);
-    if let Some(ref tools) = step.allowed_tools {
-        if !tools.is_empty() {
-            cmd.args(["--allowedTools", &tools.join(",")]);
-        }
-    }
-    cmd.arg("--no-session-persistence");
-    cmd.current_dir(project_path);
-    cmd.stdout(std::process::Stdio::piped());
-    cmd.stderr(std::process::Stdio::piped());
-
-    if let Some(ref path) = path_env {
-        cmd.env("PATH", path);
-    }
-
-    eprintln!(
-        "[workflow] executing agent step '{}' with claude -p",
-        step.id
-    );
-
-    let output = tokio::time::timeout(Duration::from_secs(300), cmd.output())
-        .await
-        .map_err(|_| format!("Agent step '{}' timed out (300s)", step.id))?
-        .map_err(|e| {
-            format!(
-                "Failed to execute claude CLI: {}. Is Claude Code installed and in PATH?",
-                e
-            )
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "claude -p exited with {}: {}",
-            output.status, stderr
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    Ok(Value::String(stdout))
-}
-
-/// Execute output definitions
-async fn execute_outputs(
-    outputs: &[OutputDef],
-    ctx: &TemplateContext,
-    project_path: &str,
-) -> Result<(), String> {
-    for output in outputs {
-        match output.output_type.as_str() {
-            "document" => {
-                if let Some(path_template) = &output.path {
-                    let rendered_path = ctx.render(path_template);
-                    let full_path = Path::new(project_path).join(&rendered_path);
-
-                    // Create parent directories
-                    if let Some(parent) = full_path.parent() {
-                        std::fs::create_dir_all(parent).map_err(|e| {
-                            format!("Failed to create output directory: {}", e)
-                        })?;
-                    }
-
-                    // Use the last step's result as document content
-                    let content = match ctx.last_step_result() {
-                        Some(val) => super::template::value_to_string(val),
-                        None => "Workflow completed with no step results.".to_string(),
-                    };
-
-                    std::fs::write(&full_path, &content).map_err(|e| {
-                        format!("Failed to write output file {:?}: {}", full_path, e)
-                    })?;
-
-                    eprintln!("[workflow] wrote output to {:?}", full_path);
-                }
-            }
-            other => {
-                eprintln!("[workflow] unsupported output type: {}", other);
-            }
-        }
-    }
-    Ok(())
-}
-
 /// Send OS notification
 fn send_notification(app: &AppHandle, workflow_name: &str, status: &str) -> Result<(), String> {
     use tauri_plugin_notification::NotificationExt;
@@ -402,122 +221,4 @@ fn send_notification(app: &AppHandle, workflow_name: &str, status: &str) -> Resu
         .map_err(|e| format!("Notification error: {}", e))?;
 
     Ok(())
-}
-
-/// Start the workflow scheduler loop
-pub fn start_workflow_scheduler(
-    engine: Arc<Mutex<WorkflowEngine>>,
-    db: Arc<WorkflowDb>,
-    app: AppHandle,
-    project_path: String,
-) {
-    let (cancel_tx, mut cancel_rx) = broadcast::channel::<()>(1);
-
-    // Store cancel handle
-    {
-        if let Ok(mut eng) = engine.lock() {
-            eng.stop_scheduler(); // Stop any existing scheduler
-            eng.set_scheduler_cancel(cancel_tx);
-        }
-    }
-
-    tauri::async_runtime::spawn(async move {
-        eprintln!(
-            "[workflow] scheduler started for project: {}",
-            project_path
-        );
-
-        loop {
-            // Scan workflows
-            let workflows = match super::parser::scan_workflows(&project_path) {
-                Ok(w) => w,
-                Err(e) => {
-                    eprintln!("[workflow] scheduler scan error: {}", e);
-                    Vec::new()
-                }
-            };
-
-            // Find next fire time among all enabled + scheduled workflows
-            let now = chrono::Utc::now();
-            let mut next_fire: Option<chrono::DateTime<chrono::Utc>> = None;
-            let mut fire_candidates: Vec<(String, WorkflowDef)> = Vec::new();
-
-            for (id, def, _) in &workflows {
-                if !def.enabled {
-                    continue;
-                }
-                if let Some(ref schedule) = def.trigger.schedule {
-                    if let Ok(cron_expr) = schedule.to_cron() {
-                        if let Ok(parsed) = cron_expr.parse::<cron::Schedule>() {
-                            if let Some(next) = parsed.upcoming(chrono::Utc).next() {
-                                if next_fire.is_none() || next < next_fire.unwrap() {
-                                    next_fire = Some(next);
-                                }
-                                // Check if this should fire now (within 1s window)
-                                let diff = (next - now).num_seconds();
-                                if diff <= 0 {
-                                    fire_candidates.push((id.clone(), def.clone()));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Fire due workflows
-            for (wf_id, wf_def) in fire_candidates {
-                let run_id = uuid::Uuid::new_v4().to_string();
-                let eng = engine.clone();
-                let d = db.clone();
-                let a = app.clone();
-                let pp = project_path.clone();
-
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) =
-                        execute_workflow(&eng, &d, &a, &wf_def, &wf_id, &run_id, &pp).await
-                    {
-                        eprintln!("[workflow] scheduled execution error: {}", e);
-                    }
-                });
-            }
-
-            // Sleep until next fire or 60s (whichever is sooner)
-            let sleep_duration = if let Some(next) = next_fire {
-                let secs = (next - now).num_seconds().max(1) as u64;
-                Duration::from_secs(secs.min(60))
-            } else {
-                Duration::from_secs(60)
-            };
-
-            tokio::select! {
-                _ = tokio::time::sleep(sleep_duration) => {}
-                _ = cancel_rx.recv() => {
-                    eprintln!("[workflow] scheduler stopped");
-                    break;
-                }
-            }
-        }
-    });
-}
-
-// ── Shell PATH resolution (same pattern as acp/manager.rs) ──
-
-static SHELL_PATH: OnceLock<Option<String>> = OnceLock::new();
-
-fn resolve_shell_path() -> Option<String> {
-    SHELL_PATH
-        .get_or_init(|| {
-            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-            let output = std::process::Command::new(&shell)
-                .args(["-l", "-c", "echo $PATH"])
-                .output()
-                .ok()?;
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if path.is_empty() {
-                None
-            } else {
-                Some(path)
-            }
-        })
-        .clone()
 }

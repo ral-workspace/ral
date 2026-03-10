@@ -2,6 +2,8 @@ pub(crate) mod types;
 pub(crate) mod parser;
 pub(crate) mod template;
 pub(crate) mod engine;
+pub(crate) mod steps;
+pub(crate) mod scheduler;
 pub(crate) mod db;
 
 use std::sync::{Arc, Mutex};
@@ -169,7 +171,7 @@ pub(crate) async fn workflow_start_scheduler(
     let engine = engine_state.inner().clone();
     let db = db_state.inner().clone();
 
-    engine::start_workflow_scheduler(engine, db, app, project_path);
+    scheduler::start_workflow_scheduler(engine, db, app, project_path);
 
     Ok(())
 }

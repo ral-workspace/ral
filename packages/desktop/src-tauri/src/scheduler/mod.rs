@@ -1,10 +1,12 @@
+pub(crate) mod types;
+pub(crate) mod execution;
 pub(crate) mod manager;
 
 use std::sync::{Arc, Mutex};
 use tauri::State;
 pub(crate) use manager::SchedulerManager;
 
-use manager::{JobDef, JobRun, NewJob};
+use types::{JobDef, JobRun, NewJob};
 
 #[tauri::command]
 pub(crate) async fn scheduler_list_jobs(
@@ -72,7 +74,7 @@ pub(crate) async fn scheduler_run_job_now(
     };
     let state_clone = state.inner().clone();
     tauri::async_runtime::spawn(async move {
-        SchedulerManager::execute_job_static(&state_clone, &job, &app).await;
+        execution::execute_job(&state_clone, &job, &app).await;
     });
     Ok(())
 }
