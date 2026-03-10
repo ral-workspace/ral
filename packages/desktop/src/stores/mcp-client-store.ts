@@ -30,6 +30,8 @@ interface McpClientState {
   htmlCache: Record<string, string>;
   /** Connected server URLs */
   connectedServers: Set<string>;
+  /** URLs currently being connected (in-flight guard) */
+  connectingServers: Set<string>;
   /** Connection errors keyed by server name */
   errors: Record<string, string>;
 }
@@ -55,13 +57,18 @@ export const useMcpClientStore = create<McpClientState & McpClientActions>((set,
   toolUiMap: {},
   htmlCache: {},
   connectedServers: new Set(),
+  connectingServers: new Set(),
   errors: {},
 
   connect: async (serverName: string, url: string) => {
-    if (get().connectedServers.has(url)) {
-      console.log(`[mcp-client] ${serverName}: already connected, skipping`);
+    if (get().connectedServers.has(url) || get().connectingServers.has(url)) {
+      console.log(`[mcp-client] ${serverName}: already connected or connecting, skipping`);
       return;
     }
+
+    set((state) => ({
+      connectingServers: new Set([...state.connectingServers, url]),
+    }));
 
     console.log(`[mcp-client] ${serverName}: connecting to ${url}...`);
     const t0 = performance.now();
@@ -83,11 +90,16 @@ export const useMcpClientStore = create<McpClientState & McpClientActions>((set,
         }
       }
 
-      set((state) => ({
-        connectedServers: new Set([...state.connectedServers, url]),
-        toolUiMap: { ...state.toolUiMap, ...newToolUiEntries },
-        errors: { ...state.errors, [serverName]: undefined } as Record<string, string>,
-      }));
+      set((state) => {
+        const nextConnecting = new Set(state.connectingServers);
+        nextConnecting.delete(url);
+        return {
+          connectedServers: new Set([...state.connectedServers, url]),
+          connectingServers: nextConnecting,
+          toolUiMap: { ...state.toolUiMap, ...newToolUiEntries },
+          errors: { ...state.errors, [serverName]: undefined } as Record<string, string>,
+        };
+      });
 
       console.log(
         `[mcp-client] ${serverName}: ready, UI tools: [${Object.keys(newToolUiEntries).join(", ")}] (total ${(performance.now() - t0).toFixed(0)}ms)`,
@@ -96,9 +108,14 @@ export const useMcpClientStore = create<McpClientState & McpClientActions>((set,
       const elapsed = performance.now() - t0;
       const message = e instanceof Error ? e.message : String(e);
       console.error(`[mcp-client] ${serverName}: connection failed after ${elapsed.toFixed(0)}ms:`, message);
-      set((state) => ({
-        errors: { ...state.errors, [serverName]: message },
-      }));
+      set((state) => {
+        const nextConnecting = new Set(state.connectingServers);
+        nextConnecting.delete(url);
+        return {
+          connectingServers: nextConnecting,
+          errors: { ...state.errors, [serverName]: message },
+        };
+      });
     }
   },
 

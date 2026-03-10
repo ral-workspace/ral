@@ -1,5 +1,5 @@
 import { cn } from "@ral/ui";
-import { useRef, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { IconArrowDown } from "@tabler/icons-react";
 import { homeDir } from "@tauri-apps/api/path";
 import { useACPStore } from "../../stores/acp-store";
@@ -26,7 +26,6 @@ export function AiChat({ className }: AiChatProps) {
     startAgent,
     sendPrompt,
     cancelPrompt,
-    stopAgent,
     setConfigOption,
     loadSessions,
     viewSession,
@@ -35,24 +34,6 @@ export function AiChat({ className }: AiChatProps) {
 
   const projectPath = useWorkspaceStore((s) => s.projectPath);
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom();
-
-  // Auto-start agent on mount / restart when project changes
-  const prevProjectPath = useRef(projectPath);
-  useEffect(() => {
-    const changed =
-      prevProjectPath.current !== projectPath &&
-      prevProjectPath.current !== null;
-    prevProjectPath.current = projectPath;
-
-    const cwd = projectPath ?? undefined;
-    const getCwd = async () => cwd ?? await homeDir();
-
-    if (changed && connected) {
-      getCwd().then((c) => stopAgent().then(() => startAgent(c)));
-    } else if (!connected && !isViewingHistory && !isAuthenticating) {
-      getCwd().then((c) => startAgent(c));
-    }
-  }, [projectPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNewChat = useCallback(() => {
     newChat();
