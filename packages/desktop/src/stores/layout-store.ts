@@ -6,12 +6,15 @@ interface LayoutState {
   showSidePanel: boolean;
   sidebarView: string;
   fileTreeRefreshKey: number;
+  expandedPaths: Set<string>;
   toggleSidebar: () => void;
   toggleBottomPanel: () => void;
   toggleSidePanel: () => void;
   setShowBottomPanel: (show: boolean) => void;
   setSidebarView: (view: string) => void;
   bumpFileTreeRefresh: () => void;
+  toggleExpanded: (path: string) => void;
+  setExpanded: (path: string, expanded: boolean) => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
@@ -26,4 +29,20 @@ export const useLayoutStore = create<LayoutState>((set) => ({
   setShowBottomPanel: (show) => set({ showBottomPanel: show }),
   setSidebarView: (view) => set({ sidebarView: view, showSidebar: true }),
   bumpFileTreeRefresh: () => set((s) => ({ fileTreeRefreshKey: s.fileTreeRefreshKey + 1 })),
+  expandedPaths: new Set<string>(),
+  toggleExpanded: (path) =>
+    set((s) => {
+      const next = new Set(s.expandedPaths);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return { expandedPaths: next };
+    }),
+  setExpanded: (path, expanded) =>
+    set((s) => {
+      if (expanded === s.expandedPaths.has(path)) return s;
+      const next = new Set(s.expandedPaths);
+      if (expanded) next.add(path);
+      else next.delete(path);
+      return { expandedPaths: next };
+    }),
 }));

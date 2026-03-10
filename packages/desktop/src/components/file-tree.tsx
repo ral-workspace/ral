@@ -8,6 +8,7 @@ import { FileIcon, FolderIcon } from "./file-icon";
 import type { NativeMenuItem } from "../lib/native-context-menu";
 import { useNativeContextMenu } from "../lib/use-native-context-menu";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { useLayoutStore } from "../stores/layout-store";
 
 interface DirEntry {
   name: string;
@@ -425,7 +426,9 @@ function TreeItem({
   autoExpandPathRef: React.MutableRefObject<string | null>;
   autoExpandTrigger: number;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const expanded = useLayoutStore((s) => s.expandedPaths.has(entry.path));
+  const toggleExpanded = useLayoutStore((s) => s.toggleExpanded);
+  const setExpanded = useLayoutStore((s) => s.setExpanded);
   const [children, setChildren] = useState<DirEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -448,8 +451,8 @@ function TreeItem({
         .catch(() => setChildren([]))
         .finally(() => setLoading(false));
     }
-    setExpanded(true);
-  }, [children, entry.path]);
+    setExpanded(entry.path, true);
+  }, [children, entry.path, setExpanded]);
 
   // Auto-expand folder when creating inside it
   useEffect(() => {
@@ -478,7 +481,7 @@ function TreeItem({
           .catch(() => setChildren([]))
           .finally(() => setLoading(false));
       }
-      setExpanded((v) => !v);
+      toggleExpanded(entry.path);
     } else {
       onFileOpen?.(entry.path, false);
     }
