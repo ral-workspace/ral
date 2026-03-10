@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { load, type Store } from "@tauri-apps/plugin-store";
 import type { OpenTab, EditorGroup, SplitNode } from "../types/editor";
-import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX } from "../types/editor";
+import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX, WORKFLOWS_TAB_ID } from "../types/editor";
 import { useDiffStore } from "./diff-store";
 import { useDatabaseStore } from "./database-store";
 import { invalidateBufferCache } from "../hooks/use-codemirror";
@@ -65,6 +65,7 @@ interface EditorState {
   pinTab: (id: string) => void;
   selectTab: (id: string) => void;
   openSettings: () => void;
+  openWorkflows: () => void;
   openBrowser: (url: string) => void;
   openDiff: (path: string, oldText: string | null, newText: string) => void;
   openPreview: (path: string) => void;
@@ -411,6 +412,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set(syncFromActiveGroup(newGroups, activeGroupId));
     } else {
       const newGroups = updateGroup(groups, activeGroupId, (g) => ({ ...g, activeTabId: SETTINGS_TAB_ID }));
+      set(syncFromActiveGroup(newGroups, activeGroupId));
+    }
+  },
+
+  openWorkflows: () => {
+    const { groups, activeGroupId } = get();
+    const group = groups.get(activeGroupId)!;
+    const existing = group.openTabs.find((t) => t.id === WORKFLOWS_TAB_ID);
+    if (!existing) {
+      const newGroups = updateGroup(groups, activeGroupId, (g) => ({
+        ...g,
+        openTabs: [...g.openTabs, { id: WORKFLOWS_TAB_ID, name: "Workflows", pinned: true, type: "workflows" }],
+        activeTabId: WORKFLOWS_TAB_ID,
+      }));
+      set(syncFromActiveGroup(newGroups, activeGroupId));
+    } else {
+      const newGroups = updateGroup(groups, activeGroupId, (g) => ({ ...g, activeTabId: WORKFLOWS_TAB_ID }));
       set(syncFromActiveGroup(newGroups, activeGroupId));
     }
   },

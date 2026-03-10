@@ -1,6 +1,7 @@
 import { cn } from "@helm/ui";
 import { useRef, useEffect, useCallback } from "react";
 import { IconArrowDown } from "@tabler/icons-react";
+import { homeDir } from "@tauri-apps/api/path";
 import { useACPStore } from "../../stores/acp-store";
 import { useWorkspaceStore } from "../../stores";
 import { useScrollToBottom } from "../../hooks/use-scroll-to-bottom";
@@ -43,16 +44,26 @@ export function AiChat({ className }: AiChatProps) {
       prevProjectPath.current !== null;
     prevProjectPath.current = projectPath;
 
+    const cwd = projectPath ?? undefined;
+    const getCwd = async () => cwd ?? await homeDir();
+
     if (changed && connected) {
-      stopAgent().then(() => startAgent(projectPath ?? "."));
+      getCwd().then((c) => stopAgent().then(() => startAgent(c)));
     } else if (!connected && !isViewingHistory && !isAuthenticating) {
-      startAgent(projectPath ?? ".");
+      getCwd().then((c) => startAgent(c));
     }
   }, [projectPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNewChat = useCallback(() => {
     newChat();
-    if (!connected) startAgent(projectPath ?? ".");
+    if (!connected) {
+      const cwd = projectPath ?? undefined;
+      if (cwd) {
+        startAgent(cwd);
+      } else {
+        homeDir().then((home) => startAgent(home));
+      }
+    }
   }, [newChat, connected, startAgent, projectPath]);
 
   const handleViewSession = useCallback(

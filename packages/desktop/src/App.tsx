@@ -17,7 +17,6 @@ import {
   useSettingsStore,
   useIconThemeStore,
   useACPStore,
-  usePluginStore,
 } from "./stores";
 import { invalidateBufferCache, getActiveEditorView, getBufferContent } from "./hooks/use-codemirror";
 import { findGroupIds } from "./stores/editor-store";
@@ -62,9 +61,6 @@ function App() {
         isMainWindow ? useEditorStore.getState()._restoreLayout() : Promise.resolve(),
         new Promise((r) => setTimeout(r, 2000)),
       ]);
-
-      // Install built-in plugins on first launch
-      usePluginStore.getState().bootstrapBuiltins().catch(() => {});
 
       // Show window and fade out splash screen
       await getCurrentWindow().show();

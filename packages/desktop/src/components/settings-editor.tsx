@@ -26,7 +26,7 @@ import {
 import { useSettingsStore } from "../stores";
 import type { Settings, SettingSection, SettingMeta } from "../settings";
 import { PluginSettings } from "./plugin-settings";
-import { AutomationSettings } from "./automation-settings";
+import { useEditorStore } from "../stores";
 
 type SettingEntry = [keyof Settings, SettingMeta];
 
@@ -122,7 +122,17 @@ export function SettingsEditor() {
           {!search && activeSection === "Plugins" ? (
             <PluginSettings />
           ) : !search && activeSection === "Automation" ? (
-            <AutomationSettings />
+            <div className="space-y-4 py-4">
+              <p className="text-xs text-muted-foreground">
+                Workflows have moved to their own dedicated view.
+              </p>
+              <button
+                className="rounded-md border bg-card px-3 py-1.5 text-xs hover:bg-muted"
+                onClick={() => useEditorStore.getState().openWorkflows()}
+              >
+                Open Workflows
+              </button>
+            </div>
           ) : filteredEntries.length === 0 ? (
             <div className="flex h-40 items-center justify-center">
               <span className="text-xs text-muted-foreground">

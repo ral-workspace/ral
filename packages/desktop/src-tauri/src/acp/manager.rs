@@ -120,7 +120,7 @@ async fn run_acp_session(
     cmd.args(&agent_args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::inherit()) // Agent logs to stderr
+        .stderr(std::process::Stdio::null())
         .kill_on_drop(true);
 
     if let Some(ref path) = shell_path {

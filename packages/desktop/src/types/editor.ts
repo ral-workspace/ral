@@ -2,7 +2,7 @@ export interface OpenTab {
   id: string;
   name: string;
   pinned: boolean;
-  type: "file" | "settings" | "browser" | "diff" | "preview" | "database" | "markdown";
+  type: "file" | "settings" | "browser" | "diff" | "preview" | "database" | "markdown" | "workflows";
 }
 
 export interface EditorGroup {
@@ -21,3 +21,4 @@ export const DIFF_TAB_PREFIX = "helm:diff:";
 export const PREVIEW_TAB_PREFIX = "helm:preview:";
 export const DATABASE_TAB_PREFIX = "helm:database:";
 export const MARKDOWN_TAB_PREFIX = "helm:markdown:";
+export const WORKFLOWS_TAB_ID = "helm:workflows";

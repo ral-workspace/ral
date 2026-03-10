@@ -13,6 +13,7 @@ import { ImagePreview } from "./image-preview";
 import { SettingsEditor } from "./settings-editor";
 import { SimpleBrowser } from "./simple-browser";
 import { MarkdownEditor } from "./markdown-editor";
+import { WorkflowsView } from "./workflows-view";
 import { EditorBreadcrumb } from "./editor-breadcrumb";
 
 interface EditorPaneProps {
@@ -60,9 +61,11 @@ export function EditorPane({ groupId, className }: EditorPaneProps) {
       {activeTab && activeTab.type === "file" && !isImageFile(activeTab.id) && (
         <EditorBreadcrumb filePath={activeTab.id} />
       )}
-      <div className={cn("flex-1", activeTab?.type === "settings" ? "overflow-y-auto scrollbar-none" : "overflow-hidden")}>
+      <div className={cn("flex-1", (activeTab?.type === "settings" || activeTab?.type === "workflows") ? "overflow-y-auto scrollbar-none" : "overflow-hidden")}>
         {activeTab?.type === "settings" ? (
           <SettingsEditor />
+        ) : activeTab?.type === "workflows" ? (
+          <WorkflowsView />
         ) : activeTab?.type === "diff" ? (
           <DiffEditor key={activeTab.id} tabId={activeTab.id} />
         ) : activeTab?.type === "browser" ? (

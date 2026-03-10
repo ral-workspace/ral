@@ -1,3 +1,4 @@
+import { homeDir } from "@tauri-apps/api/path";
 import { useEditorStore, useACPStore } from "../stores";
 import { useLayoutStore, useWorkspaceStore, useSettingsStore } from "../stores";
 import { terminalService } from "../services/terminal-service";
@@ -62,6 +63,13 @@ registerCommand({
 });
 
 registerCommand({
+  id: "workbench.action.openWorkflows",
+  label: "Open Workflows",
+  category: "View",
+  run: () => useEditorStore.getState().openWorkflows(),
+});
+
+registerCommand({
   id: "acp.startAgent",
   label: "Start AI Agent",
   category: "AI",
@@ -69,9 +77,12 @@ registerCommand({
     if (!useLayoutStore.getState().showSidePanel) {
       useLayoutStore.getState().toggleSidePanel();
     }
-    useACPStore
-      .getState()
-      .startAgent(useWorkspaceStore.getState().projectPath ?? ".");
+    const projectPath = useWorkspaceStore.getState().projectPath;
+    if (projectPath) {
+      useACPStore.getState().startAgent(projectPath);
+    } else {
+      homeDir().then((home) => useACPStore.getState().startAgent(home));
+    }
   },
 });
 

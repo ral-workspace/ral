@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { homeDir } from "@tauri-apps/api/path";
 import {
   loadSession,
   listSessions,
@@ -300,18 +301,22 @@ export const useACPStore = create<ACPState>((set, get) => ({
     if (initialized) return;
     initialized = true;
 
-    // Prewarm: start agent immediately
+    // Prewarm: start agent immediately (use projectPath or home dir)
     const { projectPath } = useWorkspaceStore.getState();
-    get().startAgent(projectPath ?? ".");
+    if (projectPath) {
+      get().startAgent(projectPath);
+    } else {
+      homeDir().then((home) => get().startAgent(home));
+    }
 
-    // Re-start agent when project changes
+    // Re-start agent when project path changes
     useWorkspaceStore.subscribe((state, prev) => {
       if (state.projectPath && state.projectPath !== prev.projectPath) {
-        const { sessionReady } = get();
-        if (sessionReady) {
+        const { connected } = get();
+        if (connected) {
           get().stopAgent().then(() => get().startAgent(state.projectPath!));
         } else {
-          get().startAgent(state.projectPath);
+          get().startAgent(state.projectPath!);
         }
       }
     });

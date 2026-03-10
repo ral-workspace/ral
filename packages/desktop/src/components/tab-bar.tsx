@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@helm/ui";
-import { IconX, IconSettings, IconWorldWww, IconFileDiff, IconPresentation, IconTable } from "@tabler/icons-react";
+import { IconX, IconSettings, IconWorldWww, IconFileDiff, IconPresentation, IconTable, IconRocket } from "@tabler/icons-react";
 import { useEditorStore, useWorkspaceStore } from "../stores";
 import type { OpenTab, EditorGroup } from "../types/editor";
 import { FileIcon } from "./file-icon";
@@ -27,6 +27,10 @@ function getTabIcon(tab: OpenTab) {
   if (tab.type === "database")
     return (
       <IconTable className="size-3.5 shrink-0 text-muted-foreground" />
+    );
+  if (tab.type === "workflows")
+    return (
+      <IconRocket className="size-3.5 shrink-0 text-muted-foreground" />
     );
   return <FileIcon fileName={tab.name} className="size-3.5 shrink-0" />;
 }
