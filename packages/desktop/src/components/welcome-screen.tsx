@@ -1,7 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { IconFolderOpen } from "@tabler/icons-react";
 import { useWorkspaceStore } from "../stores";
-import { FlickeringGrid } from "@helm/ui";
+import { FlickeringGrid } from "@ral/ui";
 
 export function WelcomeScreen() {
   const selectFolder = useWorkspaceStore((s) => s.selectFolder);
@@ -27,7 +27,7 @@ export function WelcomeScreen() {
       />
 
       <div className="relative z-10 text-center">
-        <h1 className="text-3xl font-bold text-foreground">Helm</h1>
+        <h1 className="text-3xl font-bold text-foreground">Ral</h1>
         <p className="mt-1 text-sm text-muted-foreground">AI Workspace</p>
       </div>
 

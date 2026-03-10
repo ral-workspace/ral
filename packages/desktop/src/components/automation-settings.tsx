@@ -21,7 +21,7 @@ import {
   Switch,
   Separator,
   Badge,
-} from "@helm/ui";
+} from "@ral/ui";
 import { useJobStore, type JobDef, type JobRun } from "../stores/job-store";
 import { JobFormDialog } from "./job-form-dialog";
 

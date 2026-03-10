@@ -3,7 +3,7 @@ import { AppRenderer } from "@mcp-ui/client";
 import { resolveResource } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { SolarLoader } from "@helm/ui";
+import { SolarLoader } from "@ral/ui";
 import type { ToolCallPart } from "../../stores/acp-types";
 import { useMcpClientStore } from "../../stores/mcp-client-store";
 

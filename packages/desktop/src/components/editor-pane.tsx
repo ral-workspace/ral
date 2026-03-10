@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { cn } from "@helm/ui";
+import { cn } from "@ral/ui";
 import { useEditorStore } from "../stores";
 import { isImageFile } from "../lib/file-type";
 import { BROWSER_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX } from "../types/editor";

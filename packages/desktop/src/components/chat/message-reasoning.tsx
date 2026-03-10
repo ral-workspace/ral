@@ -1,7 +1,7 @@
 import { memo, useState, useEffect } from "react";
-import { SolarLoader } from "@helm/ui";
+import { SolarLoader } from "@ral/ui";
 import { IconChevronRight } from "@tabler/icons-react";
-import { cn } from "@helm/ui";
+import { cn } from "@ral/ui";
 
 export const MessageReasoning = memo(function MessageReasoning({
   reasoning,

@@ -93,12 +93,12 @@ importers:
       '@hello-pangea/dnd':
         specifier: ^18.0.1
         version: 18.0.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@helm/ui':
-        specifier: workspace:^
-        version: link:../ui
       '@mcp-ui/client':
         specifier: ^6.1.0
         version: 6.1.0(@preact/signals-core@1.13.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@ral/ui':
+        specifier: workspace:^
+        version: link:../ui
       '@streamdown/code':
         specifier: ^1.0.3
         version: 1.0.3(react@19.2.4)
@@ -223,12 +223,6 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.31.1)
-
-  packages/plugins/database: {}
-
-  packages/plugins/presentation: {}
-
-  packages/plugins/spreadsheet: {}
 
   packages/ui:
     dependencies:

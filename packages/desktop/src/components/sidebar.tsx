@@ -1,4 +1,4 @@
-import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@helm/ui";
+import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@ral/ui";
 import {
   IconFiles,
   IconSearch,

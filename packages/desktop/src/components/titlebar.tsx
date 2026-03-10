@@ -1,4 +1,4 @@
-import { cn, Button } from "@helm/ui";
+import { cn, Button } from "@ral/ui";
 import {
   IconLayoutSidebar,
   IconLayoutSidebarFilled,
@@ -25,7 +25,7 @@ export function Titlebar() {
 
   const folderName = projectPath?.split("/").pop() ?? null;
   const titleParts = [activeTab?.name, folderName].filter(Boolean);
-  const title = titleParts.length > 0 ? titleParts.join(" - ") : "Helm";
+  const title = titleParts.length > 0 ? titleParts.join(" - ") : "Ral";
 
   return (
     <header className="h-[34px] select-none border-b bg-sidebar">

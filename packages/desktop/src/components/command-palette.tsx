@@ -6,7 +6,7 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-} from "@helm/ui";
+} from "@ral/ui";
 import { getCommands, type Command } from "../lib/commands";
 
 interface CommandPaletteProps {

@@ -1,9 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ThemeProvider } from "@helm/ui";
+import { ThemeProvider } from "@ral/ui";
 import App from "./App";
 import { StatusBar } from "./components/status-bar";
-import "@helm/ui/src/globals.css";
+import "@ral/ui/src/globals.css";
 import "streamdown/styles.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

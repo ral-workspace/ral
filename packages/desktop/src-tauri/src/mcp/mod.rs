@@ -78,7 +78,7 @@ pub(crate) async fn mcp_connect(
         json!({
             "protocolVersion": "2025-11-21",
             "capabilities": {},
-            "clientInfo": { "name": "Helm", "version": "1.0.0" }
+            "clientInfo": { "name": "Ral", "version": "1.0.0" }
         }),
         1,
     )

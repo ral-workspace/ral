@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Spinner } from "@helm/ui";
+import { Spinner } from "@ral/ui";
 import { useDatabaseStore } from "../../stores/database-store";
 import { useEditorStore } from "../../stores";
 import type { ColumnType } from "../../types/database";

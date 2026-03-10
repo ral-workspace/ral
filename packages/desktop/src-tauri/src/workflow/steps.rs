@@ -52,7 +52,7 @@ pub(super) async fn execute_tool_step(
         json!({
             "protocolVersion": "2025-11-21",
             "capabilities": {},
-            "clientInfo": { "name": "Helm Workflow", "version": "1.0.0" }
+            "clientInfo": { "name": "Ral Workflow", "version": "1.0.0" }
         }),
         1,
     )

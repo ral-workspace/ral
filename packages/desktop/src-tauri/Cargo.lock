@@ -1941,42 +1941,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "helm"
-version = "0.2.1"
-dependencies = [
- "agent-client-protocol",
- "async-trait",
- "chrono",
- "cron",
- "dirs 5.0.1",
- "git2",
- "glob",
- "globset",
- "ignore",
- "notify",
- "notify-debouncer-mini",
- "openssl",
- "portable-pty",
- "regex",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "serde_yaml",
- "sqlx",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-dialog",
- "tauri-plugin-http",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "tauri-plugin-store",
- "tokio",
- "tokio-util",
- "uuid",
-]
-
-[[package]]
 name = "hermit-abi"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3984,6 +3948,42 @@ name = "r-efi"
 version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+
+[[package]]
+name = "ral"
+version = "0.2.1"
+dependencies = [
+ "agent-client-protocol",
+ "async-trait",
+ "chrono",
+ "cron",
+ "dirs 5.0.1",
+ "git2",
+ "glob",
+ "globset",
+ "ignore",
+ "notify",
+ "notify-debouncer-mini",
+ "openssl",
+ "portable-pty",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sqlx",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-dialog",
+ "tauri-plugin-http",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "tauri-plugin-store",
+ "tokio",
+ "tokio-util",
+ "uuid",
+]
 
 [[package]]
 name = "rand"

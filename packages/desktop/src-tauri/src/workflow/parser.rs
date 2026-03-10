@@ -15,7 +15,7 @@ pub fn load_workflow(path: &Path) -> Result<WorkflowDef, String> {
 /// Returns (workflow_id, WorkflowDef, file_path) tuples.
 /// workflow_id = filename without extension.
 pub fn scan_workflows(project_path: &str) -> Result<Vec<(String, WorkflowDef, String)>, String> {
-    let pattern = format!("{}/.helm/workflows/*.yaml", project_path);
+    let pattern = format!("{}/.ral/workflows/*.yaml", project_path);
     let mut results = Vec::new();
 
     let entries = glob::glob(&pattern)

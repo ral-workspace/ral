@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo, useEffect, useCallback } from "react";
 import { IconPlayerStop, IconCornerRightUp } from "@tabler/icons-react";
-import { cn, Button } from "@helm/ui";
+import { cn, Button } from "@ral/ui";
 import type { ConfigOption, AvailableCommand } from "../../stores/acp-types";
 import { useACPStore } from "../../stores/acp-store";
 import { ConfigOptionSelector } from "./config-option-selector";

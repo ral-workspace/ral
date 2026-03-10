@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir, join } from "@tauri-apps/api/path";
 
-const HELM_DIR = ".helm";
+const RAL_DIR = ".ral";
 const PROJECTS_DIR = "projects";
 
 export interface SessionRecord {
@@ -25,7 +25,7 @@ function encodeProjectPath(path: string): string {
 async function getSessionDir(projectPath: string): Promise<string> {
   const home = await homeDir();
   const encoded = encodeProjectPath(projectPath);
-  return await join(home, HELM_DIR, PROJECTS_DIR, encoded);
+  return await join(home, RAL_DIR, PROJECTS_DIR, encoded);
 }
 
 export async function appendToSession(

@@ -15,14 +15,14 @@ fn emit_to_focused(app: &AppHandle, event: &str, payload: impl serde::Serialize 
 pub fn build_app_menu(app: &AppHandle, recent_paths: &[String], auto_save: bool) -> Result<Menu<Wry>, tauri::Error> {
     let menu = Menu::new(app)?;
 
-    // macOS: App menu (Helm)
+    // macOS: App menu (Ral)
     #[cfg(target_os = "macos")]
     {
         let about_metadata = tauri::menu::AboutMetadataBuilder::new()
-            .name(Some("Helm"))
+            .name(Some("Ral"))
             .version(Some(env!("CARGO_PKG_VERSION")))
             .build();
-        let about = PredefinedMenuItem::about(app, Some("About Helm"), Some(about_metadata))?;
+        let about = PredefinedMenuItem::about(app, Some("About Ral"), Some(about_metadata))?;
         let sep1 = PredefinedMenuItem::separator(app)?;
         let services = PredefinedMenuItem::services(app, None)?;
         let sep2 = PredefinedMenuItem::separator(app)?;
@@ -32,7 +32,7 @@ pub fn build_app_menu(app: &AppHandle, recent_paths: &[String], auto_save: bool)
         let sep3 = PredefinedMenuItem::separator(app)?;
         let quit = PredefinedMenuItem::quit(app, None)?;
         let app_menu = Submenu::with_items(
-            app, "Helm", true,
+            app, "Ral", true,
             &[&about, &sep1, &services, &sep2, &hide, &hide_others, &show_all, &sep3, &quit],
         )?;
         menu.append(&app_menu)?;

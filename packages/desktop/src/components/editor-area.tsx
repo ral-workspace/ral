@@ -1,4 +1,4 @@
-import { cn, FlickeringGrid, ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@helm/ui";
+import { cn, FlickeringGrid, ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@ral/ui";
 import { useEditorStore } from "../stores";
 import type { SplitNode } from "../types/editor";
 import { EditorPane } from "./editor-pane";
@@ -55,7 +55,7 @@ export function EditorArea({ className }: EditorAreaProps) {
         />
         <div className="relative z-10 flex flex-1 items-center justify-center">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-semibold text-foreground/80">Helm</h2>
+            <h2 className="text-2xl font-semibold text-foreground/80">Ral</h2>
             <p className="text-sm text-muted-foreground">
               Open a file or start a conversation
             </p>

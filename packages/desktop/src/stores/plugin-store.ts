@@ -1,17 +1,17 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "@tauri-apps/api/path";
-import { toast } from "@helm/ui";
+import { toast } from "@ral/ui";
 
 const OFFICIAL_MARKETPLACE = "claude-plugins-official";
 const OFFICIAL_REPO = "anthropics/claude-plugins-official";
 const OFFICIAL_URL =
   "https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/.claude-plugin/marketplace.json";
 
-const BUILTIN_MARKETPLACE = "helm-plugins";
-const BUILTIN_REPO = "cohaku-ai/helm-plugins";
+const BUILTIN_MARKETPLACE = "ral-plugins";
+const BUILTIN_REPO = "cohaku-ai/ral-plugins";
 const BUILTIN_URL =
-  "https://raw.githubusercontent.com/cohaku-ai/helm-plugins/main/.claude-plugin/marketplace.json";
+  "https://raw.githubusercontent.com/cohaku-ai/ral-plugins/main/.claude-plugin/marketplace.json";
 
 export interface MarketplacePlugin {
   name: string;

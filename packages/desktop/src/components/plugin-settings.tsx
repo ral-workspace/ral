@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { cn, Button, Badge, getPluginIcon } from "@helm/ui";
+import { cn, Button, Badge, getPluginIcon } from "@ral/ui";
 import {
   IconCircleCheckFilled,
   IconDownload,
@@ -13,7 +13,7 @@ import type { MarketplacePlugin } from "../stores/plugin-store";
 
 type Tab = "built-in" | "discover" | "installed";
 
-const BUILTIN_MARKETPLACE = "helm-plugins";
+const BUILTIN_MARKETPLACE = "ral-plugins";
 
 function PluginAvatar({ name, size = "sm" }: { name: string; size?: "sm" | "lg" }) {
   const Icon = getPluginIcon(name);

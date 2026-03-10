@@ -3,9 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
-fn helm_icon_themes_dir() -> Result<PathBuf, String> {
+fn ral_icon_themes_dir() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
-    Ok(home.join(".helm").join("icon-themes"))
+    Ok(home.join(".ral").join("icon-themes"))
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
@@ -25,7 +25,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
 
 #[tauri::command]
 pub(crate) fn ensure_icon_themes(app: AppHandle) -> Result<(), String> {
-    let target_base = helm_icon_themes_dir()?;
+    let target_base = ral_icon_themes_dir()?;
 
     let resource_dir = app
         .path()
@@ -59,7 +59,7 @@ pub(crate) struct IconThemeInfo {
 
 #[tauri::command]
 pub(crate) fn list_icon_themes() -> Result<Vec<IconThemeInfo>, String> {
-    let themes_dir = helm_icon_themes_dir()?;
+    let themes_dir = ral_icon_themes_dir()?;
     if !themes_dir.exists() {
         return Ok(vec![]);
     }
@@ -104,7 +104,7 @@ pub(crate) fn list_icon_themes() -> Result<Vec<IconThemeInfo>, String> {
 
 #[tauri::command]
 pub(crate) fn load_icon_theme(theme_id: String) -> Result<serde_json::Value, String> {
-    let themes_dir = helm_icon_themes_dir()?;
+    let themes_dir = ral_icon_themes_dir()?;
     let theme_dir = themes_dir.join(&theme_id);
 
     let pkg_path = theme_dir.join("package.json");

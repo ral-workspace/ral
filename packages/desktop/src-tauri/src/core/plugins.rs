@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use tauri_plugin_store::StoreExt;
 
-const BUILTIN_MARKETPLACE: &str = "helm-plugins";
-const BUILTIN_REPO: &str = "cohaku-ai/helm-plugins";
+const BUILTIN_MARKETPLACE: &str = "ral-plugins";
+const BUILTIN_REPO: &str = "cohaku-ai/ral-plugins";
 const MARKETPLACE_URL: &str =
-    "https://raw.githubusercontent.com/cohaku-ai/helm-plugins/main/.claude-plugin/marketplace.json";
+    "https://raw.githubusercontent.com/cohaku-ai/ral-plugins/main/.claude-plugin/marketplace.json";
 const VERSIONS_STORE_KEY: &str = "builtin-plugin-versions";
 
 #[derive(Debug, Deserialize)]
@@ -85,7 +85,7 @@ fn read_claude_settings() -> Result<ClaudeSettings, String> {
 }
 
 /// Run on app startup (in a background task). Ensures all built-in plugins
-/// from the helm-plugins marketplace are installed and up to date.
+/// from the ral-plugins marketplace are installed and up to date.
 pub async fn ensure_builtin_plugins(app: tauri::AppHandle) {
     if let Err(e) = ensure_builtin_plugins_inner(&app).await {
         eprintln!("[plugins] ensure_builtin_plugins failed: {}", e);

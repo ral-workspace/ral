@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { cn, SolarLoader } from "@helm/ui";
+import { cn, SolarLoader } from "@ral/ui";
 import { useState, useCallback } from "react";
 import type { ToolCallPart, ACPToolCallContent } from "../../stores/acp-types";
 import { useEditorStore } from "../../stores";

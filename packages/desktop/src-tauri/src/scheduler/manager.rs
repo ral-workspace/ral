@@ -73,7 +73,7 @@ impl SchedulerManager {
     pub fn new() -> Self {
         let jobs_path = dirs::home_dir()
             .unwrap_or_default()
-            .join(".helm")
+            .join(".ral")
             .join("jobs.json");
 
         let mut mgr = Self {

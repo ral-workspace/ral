@@ -1,5 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@helm/ui";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@ral/ui";
 import { terminalService } from "../services/terminal-service";
 import { useSettingsStore } from "../stores";
 

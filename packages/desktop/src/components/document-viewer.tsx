@@ -9,7 +9,7 @@ import {
   IconZoomIn,
   IconZoomOut,
 } from "@tabler/icons-react";
-import { Spinner } from "@helm/ui";
+import { Spinner } from "@ral/ui";
 import { isPdfFile, isPptxFile } from "../lib/file-type";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";

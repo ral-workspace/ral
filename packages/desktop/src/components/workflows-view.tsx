@@ -17,7 +17,7 @@ import {
   Switch,
   Separator,
   Badge,
-} from "@helm/ui";
+} from "@ral/ui";
 import { useWorkflowStore } from "../stores/workflow-store";
 import { useWorkspaceStore } from "../stores";
 
@@ -121,7 +121,7 @@ export function WorkflowsView() {
             <p className="mt-2">
               Create a YAML file in{" "}
               <code className="rounded bg-muted px-1 py-0.5">
-                .helm/workflows/
+                .ral/workflows/
               </code>{" "}
               to get started.
             </p>

@@ -11,10 +11,10 @@ impl WorkflowDb {
     pub async fn new() -> Result<Self, String> {
         let db_dir = dirs::home_dir()
             .ok_or("Cannot determine home directory")?
-            .join(".helm");
+            .join(".ral");
 
         std::fs::create_dir_all(&db_dir)
-            .map_err(|e| format!("Failed to create ~/.helm: {}", e))?;
+            .map_err(|e| format!("Failed to create ~/.ral: {}", e))?;
 
         let db_path = db_dir.join("workflow.db");
 

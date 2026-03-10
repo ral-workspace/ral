@@ -6,7 +6,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@helm/ui";
+} from "@ral/ui";
 import { IconSearch } from "@tabler/icons-react";
 import { useWorkspaceStore, useEditorStore } from "../stores";
 import { FileIcon } from "./file-icon";

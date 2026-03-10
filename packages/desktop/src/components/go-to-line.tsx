@@ -6,7 +6,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@helm/ui";
+} from "@ral/ui";
 import { getActiveEditorView } from "../hooks/use-codemirror";
 
 interface GoToLineProps {

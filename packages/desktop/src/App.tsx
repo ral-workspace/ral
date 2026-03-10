@@ -9,7 +9,7 @@ import {
   ResizablePanelGroup,
   Toaster,
   TooltipProvider,
-} from "@helm/ui";
+} from "@ral/ui";
 import {
   useWorkspaceStore,
   useLayoutStore,

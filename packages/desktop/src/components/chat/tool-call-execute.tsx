@@ -1,4 +1,4 @@
-import { cn, SolarLoader } from "@helm/ui";
+import { cn, SolarLoader } from "@ral/ui";
 import type { ACPToolCallContent } from "../../stores/acp-types";
 
 export function ExecuteBlock({

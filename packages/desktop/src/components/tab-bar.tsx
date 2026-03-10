@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { cn } from "@helm/ui";
+import { cn } from "@ral/ui";
 import { IconX, IconSettings, IconWorldWww, IconFileDiff, IconPresentation, IconTable, IconRocket } from "@tabler/icons-react";
 import { useEditorStore, useWorkspaceStore } from "../stores";
 import type { OpenTab, EditorGroup } from "../types/editor";
@@ -79,7 +79,7 @@ export function TabBar({ groupId }: TabBarProps) {
       setDragIndex(index);
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", String(index));
-      e.dataTransfer.setData("application/helm-tab", JSON.stringify({ groupId, tabId }));
+      e.dataTransfer.setData("application/ral-tab", JSON.stringify({ groupId, tabId }));
       const tab = tabRefs.current.get(index);
       if (tab) {
         e.dataTransfer.setDragImage(tab, 0, 0);
@@ -106,10 +106,10 @@ export function TabBar({ groupId }: TabBarProps) {
       let targetIndex = side === "right" ? index + 1 : index;
 
       // Check for cross-group tab transfer
-      const helmTabData = e.dataTransfer.getData("application/helm-tab");
-      if (helmTabData) {
+      const ralTabData = e.dataTransfer.getData("application/ral-tab");
+      if (ralTabData) {
         try {
-          const { groupId: sourceGroupId, tabId } = JSON.parse(helmTabData);
+          const { groupId: sourceGroupId, tabId } = JSON.parse(ralTabData);
           if (sourceGroupId !== groupId) {
             moveTabToGroup(sourceGroupId, groupId, tabId, targetIndex);
             setDragIndex(null);

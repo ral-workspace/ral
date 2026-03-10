@@ -9,7 +9,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@helm/ui";
+} from "@ral/ui";
 import { syntaxTree } from "@codemirror/language";
 import type { EditorView } from "@codemirror/view";
 import { useWorkspaceStore, useEditorStore } from "../stores";

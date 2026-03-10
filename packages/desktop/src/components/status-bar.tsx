@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { useACPStore } from "../stores/acp-store";
-import { cn } from "@helm/ui";
+import { cn } from "@ral/ui";
 
 export function StatusBar() {
   const connected = useACPStore((s) => s.connected);
@@ -20,7 +20,7 @@ export function StatusBar() {
 
   return (
     <div className="flex h-6 items-center border-t px-3">
-      <span className="text-[10px] text-muted-foreground">Helm{version ? ` v${version}` : ""}</span>
+      <span className="text-[10px] text-muted-foreground">Ral{version ? ` v${version}` : ""}</span>
       <div className="flex-1" />
       <div className="flex items-center gap-1.5">
         {connected && !sessionReady ? (

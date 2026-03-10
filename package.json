@@ -1,10 +1,10 @@
 {
   "private": true,
-  "name": "helm",
+  "name": "ral",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.12.1",
   "scripts": {
-    "dev": "pnpm --filter @helm/desktop tauri dev",
+    "dev": "pnpm --filter @ral/desktop tauri dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import type { RefObject } from "react";
-import { Spinner } from "@helm/ui";
+import { Spinner } from "@ral/ui";
 import type { ChatMessage, ChatPart } from "../../stores/acp-types";
 import { MessageBubble } from "./message-bubble";
 import { MessageReasoning } from "./message-reasoning";

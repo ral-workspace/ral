@@ -113,8 +113,8 @@ function resolveIconPath(
   manifest: IconThemeManifest,
 ): string {
   // iconPath is relative to the manifest file's directory (_manifestDir).
-  // e.g. iconPath = "./../icons/file.svg", _manifestDir = "/.../.helm/icon-themes/material-icon-theme/dist"
-  // → resolve to _manifestDir + "/../icons/file.svg" → normalize → "/.../.helm/icon-themes/material-icon-theme/icons/file.svg"
+  // e.g. iconPath = "./../icons/file.svg", _manifestDir = "/.../.ral/icon-themes/material-icon-theme/dist"
+  // → resolve to _manifestDir + "/../icons/file.svg" → normalize → "/.../.ral/icon-themes/material-icon-theme/icons/file.svg"
   const manifestDir = manifest._manifestDir;
   const cleaned = iconPath.replace(/^\.\//, "");
 

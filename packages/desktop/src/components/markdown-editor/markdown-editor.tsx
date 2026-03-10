@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTheme } from "next-themes";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import { Spinner } from "@helm/ui";
+import { Spinner } from "@ral/ui";
 import { useEditorStore } from "../../stores";
 import { MarkdownToolbar } from "./markdown-toolbar";
 

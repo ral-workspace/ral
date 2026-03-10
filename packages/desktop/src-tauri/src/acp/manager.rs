@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use super::client::HelmClient;
+use super::client::RalClient;
 
 /// Commands sent from Tauri command handlers to the ACP thread
 pub(crate) enum ACPCommand {
@@ -136,7 +136,7 @@ async fn run_acp_session(
     let stdout = child.stdout.take()
         .ok_or("Failed to get agent stdout")?;
 
-    let client = Rc::new(HelmClient::new(app.clone(), window_label.clone()));
+    let client = Rc::new(RalClient::new(app.clone(), window_label.clone()));
 
     // Create the ACP connection (wrapped in Rc so prompt futures can share it)
     let (conn, handle_io) = acp::ClientSideConnection::new(
@@ -163,8 +163,8 @@ async fn run_acp_session(
         .terminal(true)
         .meta(client_meta);
 
-    let client_info = acp::Implementation::new("helm", env!("CARGO_PKG_VERSION"))
-        .title("Helm");
+    let client_info = acp::Implementation::new("ral", env!("CARGO_PKG_VERSION"))
+        .title("Ral");
 
     let init_request = acp::InitializeRequest::new(acp::ProtocolVersion::V1)
         .client_capabilities(caps)

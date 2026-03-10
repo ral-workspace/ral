@@ -15,7 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@helm/ui";
+} from "@ral/ui";
 import type { ColumnSchema, DatabaseRow } from "../../types/database";
 import { EditableHeaderCell } from "./table-header";
 import { CellRenderer } from "./table-cell";

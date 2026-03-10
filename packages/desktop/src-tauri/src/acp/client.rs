@@ -11,14 +11,14 @@ struct PendingPermission {
     tx: oneshot::Sender<String>,
 }
 
-pub(crate) struct HelmClient {
+pub(crate) struct RalClient {
     app: AppHandle,
     window_label: String,
     pending_permissions: RefCell<HashMap<String, PendingPermission>>,
     terminals: RefCell<ACPTerminalManager>,
 }
 
-impl HelmClient {
+impl RalClient {
     pub fn new(app: AppHandle, window_label: String) -> Self {
         Self {
             app,
@@ -48,7 +48,7 @@ impl HelmClient {
 }
 
 #[async_trait::async_trait(?Send)]
-impl acp::Client for HelmClient {
+impl acp::Client for RalClient {
     async fn session_notification(
         &self,
         args: acp::SessionNotification,

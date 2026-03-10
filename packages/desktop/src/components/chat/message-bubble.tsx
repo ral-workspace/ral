@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { SolarLoader } from "@helm/ui";
+import { SolarLoader } from "@ral/ui";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import { mermaid } from "@streamdown/mermaid";

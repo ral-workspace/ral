@@ -1,4 +1,4 @@
-import { cn, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@helm/ui";
+import { cn, ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@ral/ui";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { IconX, IconArrowsMaximize, IconPlus, IconLayoutColumns, IconChevronDown, IconTrash } from "@tabler/icons-react";
 import { invoke } from "@tauri-apps/api/core";
