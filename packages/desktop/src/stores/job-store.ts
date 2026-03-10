@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { addToSet, removeFromSet, prependCapped } from "./shared/store-helpers";
 import type { JobDef, JobRun, NewJob } from "../types/job";
 import type {
   SchedulerJobStartedEvent,
@@ -42,17 +43,23 @@ export const useJobStore = create<JobState>((set, get) => ({
     try {
       const jobs = await invoke<JobDef[]>("scheduler_list_jobs");
       set({ jobs });
+    } catch (e) {
+      console.error("[job] fetchJobs error:", e);
     } finally {
       set({ isLoading: false });
     }
   },
 
   fetchHistory: async (jobId?: string) => {
-    const history = await invoke<JobRun[]>("scheduler_get_history", {
-      jobId,
-      limit: 50,
-    });
-    set({ history });
+    try {
+      const history = await invoke<JobRun[]>("scheduler_get_history", {
+        jobId,
+        limit: 50,
+      });
+      set({ history });
+    } catch (e) {
+      console.error("[job] fetchHistory error:", e);
+    }
   },
 
   createJob: async (job: NewJob) => {
@@ -96,23 +103,17 @@ function setupListeners() {
   const { setState: set } = useJobStore;
 
   listen<SchedulerJobStartedEvent>("scheduler-job-started", (event) => {
-    set((s) => {
-      const next = new Set(s.runningJobIds);
-      next.add(event.payload.job_id);
-      return { runningJobIds: next };
-    });
+    set((s) => ({
+      runningJobIds: addToSet(s.runningJobIds, event.payload.job_id),
+    }));
   });
 
   listen<SchedulerJobCompletedEvent>("scheduler-job-completed", (event) => {
     const run = event.payload;
-    set((s) => {
-      const next = new Set(s.runningJobIds);
-      next.delete(run.job_id);
-      return {
-        runningJobIds: next,
-        history: [run, ...s.history].slice(0, 50),
-      };
-    });
+    set((s) => ({
+      runningJobIds: removeFromSet(s.runningJobIds, run.job_id),
+      history: prependCapped(s.history, run, 50),
+    }));
   });
 }
 

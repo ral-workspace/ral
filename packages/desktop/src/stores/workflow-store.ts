@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkspaceStore } from "./workspace-store";
+import { addToSet, removeFromSet } from "./shared/store-helpers";
 import type {
   PendingApproval,
   WorkflowSummary,
@@ -144,11 +145,9 @@ function setupListeners() {
     "workflow-run-started",
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
-      set((s) => {
-        const next = new Set(s.runningWorkflows);
-        next.add(event.payload.workflow_id);
-        return { runningWorkflows: next };
-      });
+      set((s) => ({
+        runningWorkflows: addToSet(s.runningWorkflows, event.payload.workflow_id),
+      }));
     },
   );
 
@@ -156,14 +155,12 @@ function setupListeners() {
     "workflow-run-completed",
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
-      set((s) => {
-        const next = new Set(s.runningWorkflows);
-        next.delete(event.payload.workflow_id);
-        const approvals = s.pendingApprovals.filter(
+      set((s) => ({
+        runningWorkflows: removeFromSet(s.runningWorkflows, event.payload.workflow_id),
+        pendingApprovals: s.pendingApprovals.filter(
           (a) => a.runId !== event.payload.run_id,
-        );
-        return { runningWorkflows: next, pendingApprovals: approvals };
-      });
+        ),
+      }));
       const projectPath = useWorkspaceStore.getState().projectPath;
       if (projectPath) {
         get().fetchRuns(projectPath);

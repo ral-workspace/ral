@@ -76,7 +76,8 @@ describe("job-store", () => {
     it("should reset isLoading on error", async () => {
       mockedInvoke.mockRejectedValueOnce(new Error("fail"));
 
-      await expect(useJobStore.getState().fetchJobs()).rejects.toThrow("fail");
+      // fetchJobs catches errors internally (logs to console.error)
+      await useJobStore.getState().fetchJobs();
       expect(useJobStore.getState().isLoading).toBe(false);
     });
   });
