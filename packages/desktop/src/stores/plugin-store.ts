@@ -31,8 +31,6 @@ interface PluginState {
   isLoading: boolean;
   fetchMarketplace: () => Promise<void>;
   loadInstalled: () => Promise<void>;
-  ensureBuiltins: () => Promise<void>;
-  bootstrapBuiltins: () => Promise<void>;
   installPlugin: (name: string) => Promise<void>;
   uninstallPlugin: (name: string) => Promise<void>;
 }
@@ -112,33 +110,6 @@ export const usePluginStore = create<PluginState>((set, get) => ({
       installed[name] = value;
     }
     set({ installedPlugins: installed });
-  },
-
-  bootstrapBuiltins: async () => {
-    const STORAGE_KEY = "helm:builtins-installed";
-    if (localStorage.getItem(STORAGE_KEY)) return;
-    await get().fetchMarketplace();
-    await get().ensureBuiltins();
-    localStorage.setItem(STORAGE_KEY, "1");
-  },
-
-  ensureBuiltins: async () => {
-    const settings = await readClaudeSettings();
-    const enabled = (settings.enabledPlugins ?? {}) as Record<string, boolean>;
-    const builtins = get().plugins.filter((p) => p.marketplace === BUILTIN_MARKETPLACE);
-    const missing = builtins.filter((p) => {
-      return !Object.keys(enabled).some((key) => key.split("@")[0] === p.name);
-    });
-    if (missing.length === 0) return;
-    await ensureMarketplaceAdded(BUILTIN_MARKETPLACE, BUILTIN_REPO);
-    for (const plugin of missing) {
-      try {
-        await runClaudeCommand(["plugin", "install", `${plugin.name}@${BUILTIN_MARKETPLACE}`]);
-      } catch (e) {
-        console.error("[plugins] builtin install failed:", plugin.name, e);
-      }
-    }
-    await get().loadInstalled();
   },
 
   installPlugin: async (name: string) => {
