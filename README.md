@@ -1,14 +1,35 @@
-# Helm
+<p align="center">
+  <img src="packages/desktop/src-tauri/icons/128x128@2x.png" width="128" alt="Ral" />
+</p>
 
-AI-native code editor built with Tauri v2.
+<h3 align="center">AI Workspace for Everyone</h3>
+
+<p align="center">
+  <a href="https://github.com/cohaku-ai/ral/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-%23D97706?labelColor=%2327272a"></a>
+  <a href="https://github.com/cohaku-ai/ral"><img alt="GitHub stars" src="https://img.shields.io/github/stars/cohaku-ai/ral?color=%23D97706&labelColor=%2327272a"></a>
+</p>
+
+---
+
+Ral is a desktop AI workspace built with Tauri v2. It brings AI-powered tools — chat, workflows, databases, presentations, and spreadsheets — into a single native app designed for business users.
+
+## Key Features
+
+- **AI Chat** — Claude-powered assistant via ACP (Agent Control Protocol)
+- **Workflows** — Automated MCP + AI pipelines defined in YAML
+- **Plugins** — Extensible via [Claude Code plugins](https://github.com/cohaku-ai/ral-plugins) (database, presentation, spreadsheet, workflow)
+- **Native Performance** — Tauri v2 (Rust) backend with React frontend
 
 ## Tech Stack
 
-- **Desktop**: Tauri v2 (Rust) + React + TypeScript
-- **UI**: Tailwind CSS v4 + shadcn/ui
-- **Editor**: CodeMirror 6
-- **AI**: Claude Code via ACP (Agent Control Protocol)
-- **Build**: pnpm workspaces + Turborepo
+| Layer | Technology |
+| --- | --- |
+| **Desktop** | Tauri v2 (Rust) |
+| **Frontend** | React + TypeScript + Vite |
+| **UI** | Tailwind CSS v4 + shadcn/ui |
+| **Editor** | CodeMirror 6 |
+| **AI** | Claude Code via ACP |
+| **Build** | pnpm workspaces + Turborepo |
 
 ## Project Structure
 
@@ -40,4 +61,4 @@ pnpm typecheck
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
+[Apache License 2.0](LICENSE)
