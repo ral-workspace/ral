@@ -22,7 +22,8 @@ import {
   Separator,
   Badge,
 } from "@ral/ui";
-import { useJobStore, type JobDef, type JobRun } from "../stores/job-store";
+import { useJobStore } from "../stores/job-store";
+import type { JobDef, JobRun } from "../types/job";
 import { JobFormDialog } from "./job-form-dialog";
 
 function formatSchedule(schedule: JobDef["schedule"]): string {

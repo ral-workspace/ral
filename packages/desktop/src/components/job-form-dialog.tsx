@@ -15,12 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ral/ui";
-import {
-  type JobDef,
-  type NewJob,
-  type JobSchedule,
-  useJobStore,
-} from "../stores/job-store";
+import { useJobStore } from "../stores/job-store";
+import type { JobDef, NewJob, JobSchedule } from "../types/job";
 
 interface JobFormDialogProps {
   open: boolean;

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { useJobStore, type JobDef, type JobRun } from "../stores/job-store";
+import { useJobStore } from "../stores/job-store";
+import type { JobDef, JobRun } from "../types/job";
 
 const mockedInvoke = vi.mocked(invoke);
 

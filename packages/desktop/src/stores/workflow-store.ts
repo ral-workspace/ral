@@ -2,85 +2,17 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkspaceStore } from "./workspace-store";
-
-// ── Types ──
-
-export interface ScheduleTrigger {
-  schedule_type: "daily" | "weekly" | "monthly" | "interval";
-  at?: string;
-  day?: string;
-  day_of_month?: number;
-  every?: number;
-  unit?: string;
-}
-
-export interface TriggerDef {
-  schedule?: ScheduleTrigger;
-  manual: boolean;
-}
-
-export interface StepDef {
-  id: string;
-  tool?: string;
-  agent?: string;
-  prompt?: string;
-  params?: Record<string, unknown>;
-  approve: boolean;
-  retry?: number;
-}
-
-export interface PendingApproval {
-  runId: string;
-  workflowId: string;
-  workflowName: string;
-  stepId: string;
-  stepTool?: string;
-  stepAgent?: string;
-}
-
-export interface OutputDef {
-  output_type: string;
-  path?: string;
-}
-
-export interface WorkflowDef {
-  name: string;
-  enabled: boolean;
-  trigger: TriggerDef;
-  permissions: string[];
-  steps: StepDef[];
-  output: OutputDef[];
-}
-
-export interface WorkflowSummary {
-  id: string;
-  name: string;
-  enabled: boolean;
-  file_path: string;
-  schedule_description: string | null;
-  last_run_at: string | null;
-  last_run_status: string | null;
-}
-
-export interface StepResult {
-  step_id: string;
-  status: string;
-  result: unknown;
-  error: string | null;
-  started_at: string;
-  finished_at: string;
-}
-
-export interface WorkflowRun {
-  id: string;
-  workflow_id: string;
-  project_path: string | null;
-  status: string;
-  started_at: string;
-  finished_at: string | null;
-  steps: StepResult[];
-  error: string | null;
-}
+import type {
+  PendingApproval,
+  WorkflowSummary,
+  WorkflowRun,
+} from "../types/workflow";
+import type {
+  WorkflowRunStartedEvent,
+  WorkflowRunCompletedEvent,
+  WorkflowApprovalPendingEvent,
+  WorkflowApprovalResolvedEvent,
+} from "../types/events";
 
 // ── Store ──
 
@@ -208,7 +140,7 @@ function isCurrentProject(eventProjectPath?: string): boolean {
 function setupListeners() {
   const { set, get } = { set: useWorkflowStore.setState, get: useWorkflowStore.getState };
 
-  listen<{ workflow_id: string; run_id: string; project_path?: string }>(
+  listen<WorkflowRunStartedEvent>(
     "workflow-run-started",
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
@@ -220,7 +152,7 @@ function setupListeners() {
     },
   );
 
-  listen<{ run_id: string; workflow_id: string; status: string; project_path?: string }>(
+  listen<WorkflowRunCompletedEvent>(
     "workflow-run-completed",
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
@@ -240,15 +172,7 @@ function setupListeners() {
     },
   );
 
-  listen<{
-    run_id: string;
-    workflow_id: string;
-    workflow_name: string;
-    step_id: string;
-    step_tool?: string;
-    step_agent?: string;
-    project_path?: string;
-  }>("workflow-approval-pending", (event) => {
+  listen<WorkflowApprovalPendingEvent>("workflow-approval-pending", (event) => {
     if (!isCurrentProject(event.payload.project_path)) return;
     const { run_id, workflow_id, workflow_name, step_id, step_tool, step_agent } =
       event.payload;
@@ -273,7 +197,7 @@ function setupListeners() {
     });
   });
 
-  listen<{ run_id: string; step_id: string; approved: boolean; project_path?: string }>(
+  listen<WorkflowApprovalResolvedEvent>(
     "workflow-approval-resolved",
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
