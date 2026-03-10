@@ -133,6 +133,20 @@ export function getActiveEditorView(): EditorView | null {
   return activeEditorView;
 }
 
+// --- Editor update subscription (for external consumers like breadcrumb) ---
+
+type EditorUpdateCallback = () => void;
+const editorUpdateListeners = new Set<EditorUpdateCallback>();
+
+export function subscribeToEditorUpdates(cb: EditorUpdateCallback): () => void {
+  editorUpdateListeners.add(cb);
+  return () => { editorUpdateListeners.delete(cb); };
+}
+
+function notifyEditorUpdate() {
+  for (const cb of editorUpdateListeners) cb();
+}
+
 // --- Buffer cache ---
 
 const bufferCache = new Map<string, EditorState>();
@@ -216,6 +230,9 @@ export function useCodeMirror({
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           useEditorStore.getState().markDirty(path);
+        }
+        if (update.docChanged || update.selectionSet) {
+          notifyEditorUpdate();
         }
       }),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),

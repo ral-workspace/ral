@@ -14,7 +14,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { EditorView } from "@codemirror/view";
 import { useWorkspaceStore, useEditorStore } from "../stores";
 import { FileIcon, FolderIcon } from "./file-icon";
-import { getActiveEditorView } from "../hooks/use-codemirror";
+import { getActiveEditorView, subscribeToEditorUpdates } from "../hooks/use-codemirror";
 
 interface DirEntry {
   name: string;
@@ -202,16 +202,23 @@ function useSymbolsAtCursor(filePath: string): SymbolInfo[] {
   }, []);
 
   useEffect(() => {
-    // Initial read
+    // Initial read (deferred to allow EditorView to initialize)
     const timer = setTimeout(updateSymbols, 100);
 
-    // Poll on interval since we can't easily subscribe to cursor changes
-    // from outside the EditorView
-    const interval = setInterval(updateSymbols, 300);
+    // Subscribe to cursor/document changes with RAF throttle
+    let rafId = 0;
+    const unsub = subscribeToEditorUpdates(() => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        updateSymbols();
+      });
+    });
 
     return () => {
       clearTimeout(timer);
-      clearInterval(interval);
+      if (rafId) cancelAnimationFrame(rafId);
+      unsub();
     };
   }, [filePath, updateSymbols]);
 
