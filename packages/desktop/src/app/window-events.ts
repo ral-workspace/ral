@@ -6,13 +6,14 @@ import {
   useEditorStore,
 } from "../stores";
 import { invalidateBufferCache } from "../hooks/use-codemirror";
+import { EVENTS } from "../types/events";
 
 /**
  * Register the single-instance / CLI "open-project" listener.
  * Returns an unlisten function.
  */
 export function registerOpenProjectListener(): () => void {
-  const unlisten = listen<string>("open-project", (event) => {
+  const unlisten = listen<string>(EVENTS.OPEN_PROJECT, (event) => {
     const path = event.payload;
     if (path) {
       useWorkspaceStore.getState().selectFolder(path);
@@ -30,7 +31,7 @@ export function startFileWatcher(projectPath: string): () => void {
     console.error("Failed to start file watcher:", err),
   );
 
-  const unlisten = listen<string>("file-changed", (event) => {
+  const unlisten = listen<string>(EVENTS.FILE_CHANGED, (event) => {
     const changedPath = event.payload;
     if (!changedPath.startsWith(projectPath)) return;
     invalidateBufferCache(changedPath);

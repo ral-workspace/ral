@@ -3,9 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { addToSet, removeFromSet, prependCapped } from "./shared/store-helpers";
 import type { JobDef, JobRun, NewJob } from "../types/job";
-import type {
-  SchedulerJobStartedEvent,
-  SchedulerJobCompletedEvent,
+import {
+  EVENTS,
+  type SchedulerJobStartedEvent,
+  type SchedulerJobCompletedEvent,
 } from "../types/events";
 
 // ── Store ──
@@ -102,13 +103,13 @@ export const useJobStore = create<JobState>((set, get) => ({
 function setupListeners() {
   const { setState: set } = useJobStore;
 
-  listen<SchedulerJobStartedEvent>("scheduler-job-started", (event) => {
+  listen<SchedulerJobStartedEvent>(EVENTS.SCHEDULER_JOB_STARTED, (event) => {
     set((s) => ({
       runningJobIds: addToSet(s.runningJobIds, event.payload.job_id),
     }));
   });
 
-  listen<SchedulerJobCompletedEvent>("scheduler-job-completed", (event) => {
+  listen<SchedulerJobCompletedEvent>(EVENTS.SCHEDULER_JOB_COMPLETED, (event) => {
     const run = event.payload;
     set((s) => ({
       runningJobIds: removeFromSet(s.runningJobIds, run.job_id),

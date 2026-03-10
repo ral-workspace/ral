@@ -12,6 +12,7 @@ import {
   getBufferContent,
 } from "../hooks/use-codemirror";
 import { addHistoryEntry } from "../services/history-service";
+import { EVENTS } from "../types/events";
 
 /**
  * Register all native menu event listeners.
@@ -21,14 +22,14 @@ import { addHistoryEntry } from "../services/history-service";
  */
 export function registerMenuHandlers(onCommandPalette: () => void): () => void {
   const unlisteners: Promise<UnlistenFn>[] = [
-    listen("menu-open-folder", async () => {
+    listen(EVENTS.MENU_OPEN_FOLDER, async () => {
       const selected = await open({ directory: true, multiple: false });
       if (selected) {
         useWorkspaceStore.getState().selectFolder(selected);
       }
     }),
 
-    listen("menu-new-file", () => {
+    listen(EVENTS.MENU_NEW_FILE, () => {
       const projectPath = useWorkspaceStore.getState().projectPath;
       if (projectPath) {
         invoke("create_file", { path: `${projectPath}/Untitled` })
@@ -40,7 +41,7 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }
     }),
 
-    listen("menu-save", () => {
+    listen(EVENTS.MENU_SAVE, () => {
       const view = getActiveEditorView();
       const { activeTabId, groups, activeGroupId } = useEditorStore.getState();
       const group = groups.get(activeGroupId);
@@ -65,7 +66,7 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }
     }),
 
-    listen("menu-save-as", async () => {
+    listen(EVENTS.MENU_SAVE_AS, async () => {
       const view = getActiveEditorView();
       const { activeTabId } = useEditorStore.getState();
       if (view && activeTabId) {
@@ -82,7 +83,7 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }
     }),
 
-    listen("menu-save-all", () => {
+    listen(EVENTS.MENU_SAVE_ALL, () => {
       const { dirtyFiles, activeTabId, markClean } = useEditorStore.getState();
       const s = useSettingsStore.getState().settings;
       const view = getActiveEditorView();
@@ -111,7 +112,7 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }
     }),
 
-    listen("menu-auto-save", () => {
+    listen(EVENTS.MENU_AUTO_SAVE, () => {
       const s = useSettingsStore.getState();
       const current = s.settings["files.autoSave"];
       s.updateSettings({ "files.autoSave": !current });
@@ -122,7 +123,7 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }).catch(() => {});
     }),
 
-    listen("menu-revert-file", () => {
+    listen(EVENTS.MENU_REVERT_FILE, () => {
       const { activeTabId } = useEditorStore.getState();
       if (activeTabId) {
         invoke<string>("read_file", { path: activeTabId })
@@ -143,12 +144,12 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }
     }),
 
-    listen("menu-close-editor", () => {
+    listen(EVENTS.MENU_CLOSE_EDITOR, () => {
       const { activeTabId, closeTab } = useEditorStore.getState();
       if (activeTabId) closeTab(activeTabId);
     }),
 
-    listen("menu-close-folder", async () => {
+    listen(EVENTS.MENU_CLOSE_FOLDER, async () => {
       const closingPath = useWorkspaceStore.getState().projectPath;
       useWorkspaceStore.setState({ projectPath: null });
       useEditorStore.getState().closeAllTabs();
@@ -158,11 +159,11 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }
     }),
 
-    listen("menu-command-palette", () => {
+    listen(EVENTS.MENU_COMMAND_PALETTE, () => {
       onCommandPalette();
     }),
 
-    listen<string>("menu-zoom", (event) => {
+    listen<string>(EVENTS.MENU_ZOOM, (event) => {
       const root = document.documentElement;
       const current = parseFloat(
         root.style.getPropertyValue("--zoom") || "1",
@@ -183,7 +184,7 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       document.body.style.zoom = String(next);
     }),
 
-    listen<number>("menu-open-recent", (event) => {
+    listen<number>(EVENTS.MENU_OPEN_RECENT, (event) => {
       const idx = event.payload;
       const { recentProjects, selectFolder } = useWorkspaceStore.getState();
       if (idx < recentProjects.length) {

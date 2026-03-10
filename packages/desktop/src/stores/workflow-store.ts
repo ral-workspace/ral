@@ -8,11 +8,12 @@ import type {
   WorkflowSummary,
   WorkflowRun,
 } from "../types/workflow";
-import type {
-  WorkflowRunStartedEvent,
-  WorkflowRunCompletedEvent,
-  WorkflowApprovalPendingEvent,
-  WorkflowApprovalResolvedEvent,
+import {
+  EVENTS,
+  type WorkflowRunStartedEvent,
+  type WorkflowRunCompletedEvent,
+  type WorkflowApprovalPendingEvent,
+  type WorkflowApprovalResolvedEvent,
 } from "../types/events";
 
 // ── Store ──
@@ -142,7 +143,7 @@ function setupListeners() {
   const { set, get } = { set: useWorkflowStore.setState, get: useWorkflowStore.getState };
 
   listen<WorkflowRunStartedEvent>(
-    "workflow-run-started",
+    EVENTS.WORKFLOW_RUN_STARTED,
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
       set((s) => ({
@@ -152,7 +153,7 @@ function setupListeners() {
   );
 
   listen<WorkflowRunCompletedEvent>(
-    "workflow-run-completed",
+    EVENTS.WORKFLOW_RUN_COMPLETED,
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
       set((s) => ({
@@ -169,7 +170,7 @@ function setupListeners() {
     },
   );
 
-  listen<WorkflowApprovalPendingEvent>("workflow-approval-pending", (event) => {
+  listen<WorkflowApprovalPendingEvent>(EVENTS.WORKFLOW_APPROVAL_PENDING, (event) => {
     if (!isCurrentProject(event.payload.project_path)) return;
     const { run_id, workflow_id, workflow_name, step_id, step_tool, step_agent } =
       event.payload;
@@ -195,7 +196,7 @@ function setupListeners() {
   });
 
   listen<WorkflowApprovalResolvedEvent>(
-    "workflow-approval-resolved",
+    EVENTS.WORKFLOW_APPROVAL_RESOLVED,
     (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
       set((s) => ({
