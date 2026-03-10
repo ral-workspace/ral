@@ -73,6 +73,17 @@ function App() {
     init();
   }, []);
 
+  // CLI / single-instance: open project from 'ral /path'
+  useEffect(() => {
+    const unlisten = listen<string>("open-project", (event) => {
+      const path = event.payload;
+      if (path) {
+        useWorkspaceStore.getState().selectFolder(path);
+      }
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
+
   // Menu events from native menu bar
   useEffect(() => {
     const unlisteners = [

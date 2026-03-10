@@ -1,5 +1,25 @@
 use tauri::menu::{CheckMenuItem, Menu, MenuItemBuilder, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder, Wry};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WebviewWindowBuilder, Wry};
+
+/// Create a new window and return its handle.
+pub fn create_new_window(app: &AppHandle) -> Result<WebviewWindow, String> {
+    let label = format!(
+        "window-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App(Default::default()))
+        .title("")
+        .inner_size(1200.0, 800.0)
+        .visible(false)
+        .decorations(true)
+        .hidden_title(true)
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .build()
+        .map_err(|e| format!("Failed to create new window: {}", e))
+}
 
 /// Emit an event only to the currently focused window.
 /// If no window is focused, do nothing (avoid triggering all windows).
@@ -174,28 +194,9 @@ pub fn handle_menu_event(app: &AppHandle, event: &tauri::menu::MenuEvent) {
             emit_to_focused(app, "menu-new-file", ());
         }
         "menu_new_window" => {
-            let label = format!(
-                "window-{}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis())
-                    .unwrap_or(0)
-            );
-            match WebviewWindowBuilder::new(
-                app,
-                &label,
-                tauri::WebviewUrl::App(Default::default()),
-            )
-            .title("")
-            .inner_size(1200.0, 800.0)
-            .visible(false)
-            .decorations(true)
-            .hidden_title(true)
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .build()
-            {
-                Ok(_) => eprintln!("New window created: {}", label),
-                Err(e) => eprintln!("Failed to create new window: {}", e),
+            match create_new_window(app) {
+                Ok(w) => eprintln!("New window created: {}", w.label()),
+                Err(e) => eprintln!("{}", e),
             }
         }
         "menu_open_folder" => {

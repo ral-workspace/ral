@@ -7,11 +7,41 @@ mod system;
 mod workflow;
 
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_cli::CliExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // Second instance launched: open project in new window
+            let path = args.get(1).cloned().and_then(|p| {
+                if p.starts_with('-') {
+                    return None;
+                }
+                let path = std::path::Path::new(&p);
+                let abs = if path.is_absolute() {
+                    path.to_path_buf()
+                } else {
+                    std::path::Path::new(&_cwd).join(path)
+                };
+                abs.canonicalize().ok().map(|p| p.to_string_lossy().to_string())
+            });
+            if let Some(ref project_path) = path {
+                match core::menu::create_new_window(app) {
+                    Ok(window) => {
+                        let _ = window.emit("open-project", project_path.clone());
+                    }
+                    Err(e) => eprintln!("{}", e),
+                }
+            } else {
+                // No path: just focus the main window
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_focus();
+                }
+            }
+        }))
+        .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -62,6 +92,34 @@ pub fn run() {
                         }
                     }
                 });
+            }
+
+            // Handle CLI path argument (first launch)
+            {
+                if let Ok(matches) = app.cli().matches() {
+                    if let Some(arg) = matches.args.get("path") {
+                        if let Some(raw) = arg.value.as_str().map(|s: &str| s.to_string()) {
+                            if !raw.is_empty() {
+                                let cwd = std::env::current_dir().unwrap_or_default();
+                                let p = std::path::Path::new(&raw);
+                                let abs = if p.is_absolute() {
+                                    p.to_path_buf()
+                                } else {
+                                    cwd.join(p)
+                                };
+                                if let Ok(canonical) = abs.canonicalize() {
+                                    let path_str = canonical.to_string_lossy().to_string();
+                                    let handle = app.handle().clone();
+                                    // Emit after a short delay so the frontend has time to set up listeners
+                                    tauri::async_runtime::spawn(async move {
+                                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                                        let _ = handle.emit("open-project", path_str);
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Ensure built-in plugins are installed (background, non-blocking)
@@ -144,6 +202,8 @@ pub fn run() {
             workflow::workflow_toggle,
             workflow::workflow_start_scheduler,
             workflow::workflow_stop_scheduler,
+            core::cli::install_cli,
+            core::cli::uninstall_cli,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

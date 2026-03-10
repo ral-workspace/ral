@@ -1,4 +1,5 @@
 import { homeDir } from "@tauri-apps/api/path";
+import { invoke } from "@tauri-apps/api/core";
 import { useEditorStore, useACPStore } from "../stores";
 import { useLayoutStore, useWorkspaceStore, useSettingsStore } from "../stores";
 import { terminalService } from "../services/terminal-service";
@@ -143,5 +144,36 @@ registerCommand({
   run: () => {
     const id = terminalService.getActiveTerminalId();
     if (id !== null) terminalService.killTerminal(id);
+  },
+});
+
+registerCommand({
+  id: "workbench.action.installCli",
+  label: "Install 'ral' command in PATH",
+  category: "Shell Command",
+  run: () => {
+    invoke<string>("install_cli")
+      .then((msg) => {
+        // Use sonner toast if available, otherwise alert
+        import("sonner").then(({ toast }) => toast.success(msg)).catch(() => alert(msg));
+      })
+      .catch((err) => {
+        import("sonner").then(({ toast }) => toast.error(String(err))).catch(() => alert(err));
+      });
+  },
+});
+
+registerCommand({
+  id: "workbench.action.uninstallCli",
+  label: "Uninstall 'ral' command from PATH",
+  category: "Shell Command",
+  run: () => {
+    invoke<string>("uninstall_cli")
+      .then((msg) => {
+        import("sonner").then(({ toast }) => toast.success(msg)).catch(() => alert(msg));
+      })
+      .catch((err) => {
+        import("sonner").then(({ toast }) => toast.error(String(err))).catch(() => alert(err));
+      });
   },
 });

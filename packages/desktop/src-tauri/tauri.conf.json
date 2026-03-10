@@ -39,6 +39,18 @@
       }
     }
   },
+  "plugins": {
+    "cli": {
+      "description": "Ral - AI workspace",
+      "args": [
+        {
+          "name": "path",
+          "index": 1,
+          "takesValue": true
+        }
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

@@ -10,12 +10,14 @@ import {
   IconFolderPlus,
   IconRefresh,
   IconFoldDown,
+  IconRoute,
 } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FileTree, type CreatingItem } from "./file-tree";
 import { SearchView } from "./search-view";
 import { useWorkspaceStore, useEditorStore, useLayoutStore } from "../stores";
+import { WORKFLOWS_TAB_ID } from "../types/editor";
 import { isDocumentFile, isDbYamlFile, isMarkdownFile } from "../lib/file-type";
 import { TimelineView } from "./timeline-view";
 import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX } from "../types/editor";
@@ -43,6 +45,7 @@ const activityItems = [
   { icon: IconSearch, label: "Search", id: "search" },
   { icon: IconGitBranch, label: "Source Control", id: "scm" },
   { icon: IconPuzzle, label: "Extensions", id: "extensions" },
+  { icon: IconRoute, label: "Workflows", id: "workflows", action: "openTab" },
 ];
 
 export function Sidebar({ className }: SidebarProps) {
@@ -99,22 +102,33 @@ export function Sidebar({ className }: SidebarProps) {
     >
       {/* Activity Bar - horizontal icons */}
       <div className="flex h-10 items-center justify-center gap-0.5 px-2">
-        {activityItems.map((item) => (
-          <Tooltip key={item.id}>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setSidebarView(item.id)}
-                className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground",
-                  activeView === item.id && "text-sidebar-foreground",
-                )}
-              >
-                <item.icon className="size-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{item.label}</TooltipContent>
-          </Tooltip>
-        ))}
+        {activityItems.map((item) => {
+          const isWorkflowsOpen = useEditorStore.getState().openTabs.some((t) => t.id === WORKFLOWS_TAB_ID)
+            && useEditorStore.getState().activeTabId === WORKFLOWS_TAB_ID;
+          const isActive = item.action === "openTab" ? isWorkflowsOpen : activeView === item.id;
+          return (
+            <Tooltip key={item.id}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => {
+                    if (item.action === "openTab") {
+                      useEditorStore.getState().openWorkflows();
+                    } else {
+                      setSidebarView(item.id);
+                    }
+                  }}
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground",
+                    isActive && "text-sidebar-foreground",
+                  )}
+                >
+                  <item.icon className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{item.label}</TooltipContent>
+            </Tooltip>
+          );
+        })}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
