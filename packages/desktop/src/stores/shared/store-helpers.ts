@@ -19,3 +19,12 @@ export function removeFromSet<T>(set: Set<T>, item: T): Set<T> {
 export function prependCapped<T>(arr: T[], item: T, max: number): T[] {
   return [item, ...arr].slice(0, max);
 }
+
+/**
+ * Normalize an unknown error into a human-readable string.
+ */
+export function normalizeError(e: unknown): string {
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  return String(e);
+}

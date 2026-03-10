@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { addToSet, removeFromSet, prependCapped } from "./shared/store-helpers";
+import { toast } from "sonner";
+import { addToSet, removeFromSet, prependCapped, normalizeError } from "./shared/store-helpers";
 import type { JobDef, JobRun, NewJob } from "../types/job";
 import {
   EVENTS,
@@ -19,6 +20,8 @@ interface JobState {
   runningJobIds: Set<string>;
   isLoading: boolean;
   inFlight: Record<string, JobInFlightAction | undefined>;
+  lastError: string | null;
+  lastAction: string | null;
 
   _init: () => Promise<void>;
   fetchJobs: () => Promise<void>;
@@ -29,6 +32,7 @@ interface JobState {
   toggleJob: (id: string, enabled: boolean) => Promise<void>;
   runJobNow: (id: string) => Promise<void>;
   cancelJob: (id: string) => Promise<void>;
+  clearError: () => void;
 }
 
 export const useJobStore = create<JobState>((set, get) => ({
@@ -37,6 +41,8 @@ export const useJobStore = create<JobState>((set, get) => ({
   runningJobIds: new Set(),
   isLoading: false,
   inFlight: {},
+  lastError: null,
+  lastAction: null,
 
   _init: async () => {
     await get().fetchJobs();
@@ -88,12 +94,16 @@ export const useJobStore = create<JobState>((set, get) => ({
 
   toggleJob: async (id: string, enabled: boolean) => {
     if (get().inFlight[id]) return;
-    set((s) => ({ inFlight: { ...s.inFlight, [id]: "toggle" } }));
+    set((s) => ({ inFlight: { ...s.inFlight, [id]: "toggle" }, lastError: null }));
     try {
       await invoke("scheduler_toggle_job", { id, enabled });
       set((s) => ({
         jobs: s.jobs.map((j) => (j.id === id ? { ...j, enabled } : j)),
       }));
+    } catch (e) {
+      const msg = normalizeError(e);
+      set({ lastError: msg, lastAction: "toggle" });
+      toast.error(`Failed to toggle job: ${msg}`);
     } finally {
       set((s) => { const { [id]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
     }
@@ -101,9 +111,13 @@ export const useJobStore = create<JobState>((set, get) => ({
 
   runJobNow: async (id: string) => {
     if (get().inFlight[id]) return;
-    set((s) => ({ inFlight: { ...s.inFlight, [id]: "run" } }));
+    set((s) => ({ inFlight: { ...s.inFlight, [id]: "run" }, lastError: null }));
     try {
       await invoke("scheduler_run_job_now", { id });
+    } catch (e) {
+      const msg = normalizeError(e);
+      set({ lastError: msg, lastAction: "run" });
+      toast.error(`Failed to run job: ${msg}`);
     } finally {
       set((s) => { const { [id]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
     }
@@ -111,13 +125,19 @@ export const useJobStore = create<JobState>((set, get) => ({
 
   cancelJob: async (id: string) => {
     if (get().inFlight[id]) return;
-    set((s) => ({ inFlight: { ...s.inFlight, [id]: "cancel" } }));
+    set((s) => ({ inFlight: { ...s.inFlight, [id]: "cancel" }, lastError: null }));
     try {
       await invoke("scheduler_cancel_job", { id });
+    } catch (e) {
+      const msg = normalizeError(e);
+      set({ lastError: msg, lastAction: "cancel" });
+      toast.error(`Failed to cancel job: ${msg}`);
     } finally {
       set((s) => { const { [id]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
     }
   },
+
+  clearError: () => set({ lastError: null, lastAction: null }),
 }));
 
 // ── Event listeners (registered once at module load) ──

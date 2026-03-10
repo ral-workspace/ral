@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkspaceStore } from "./workspace-store";
-import { addToSet, removeFromSet } from "./shared/store-helpers";
+import { toast } from "sonner";
+import { addToSet, removeFromSet, normalizeError } from "./shared/store-helpers";
 import type {
   PendingApproval,
   WorkflowSummary,
@@ -27,6 +28,8 @@ interface WorkflowState {
   pendingApprovals: PendingApproval[];
   isLoading: boolean;
   inFlight: Record<string, WorkflowInFlightAction | undefined>;
+  lastError: string | null;
+  lastAction: string | null;
 
   _init: (projectPath: string) => Promise<void>;
   fetchWorkflows: (projectPath: string) => Promise<void>;
@@ -41,6 +44,7 @@ interface WorkflowState {
   ) => Promise<void>;
   startScheduler: (projectPath: string) => Promise<void>;
   stopScheduler: (projectPath: string) => Promise<void>;
+  clearError: () => void;
 }
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
@@ -50,6 +54,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   pendingApprovals: [],
   isLoading: false,
   inFlight: {},
+  lastError: null,
+  lastAction: null,
 
   _init: async (projectPath: string) => {
     await get().fetchWorkflows(projectPath);
@@ -95,9 +101,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   runWorkflow: async (projectPath: string, workflowId: string) => {
     if (get().inFlight[workflowId]) return;
-    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "run" } }));
+    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "run" }, lastError: null }));
     try {
       await invoke<string>("workflow_run", { projectPath, workflowId });
+    } catch (e) {
+      const msg = normalizeError(e);
+      set({ lastError: msg, lastAction: "run" });
+      toast.error(`Failed to run workflow: ${msg}`);
     } finally {
       set((s) => { const { [workflowId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
     }
@@ -105,9 +115,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   cancelWorkflow: async (runId: string, workflowId: string) => {
     if (get().inFlight[workflowId]) return;
-    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "cancel" } }));
+    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "cancel" }, lastError: null }));
     try {
       await invoke("workflow_cancel", { runId });
+    } catch (e) {
+      const msg = normalizeError(e);
+      set({ lastError: msg, lastAction: "cancel" });
+      toast.error(`Failed to cancel workflow: ${msg}`);
     } finally {
       set((s) => { const { [workflowId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
     }
@@ -116,9 +130,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   respondApproval: async (runId: string, approved: boolean) => {
     const action = approved ? "approve" : "reject";
     if (get().inFlight[runId]) return;
-    set((s) => ({ inFlight: { ...s.inFlight, [runId]: action } }));
+    set((s) => ({ inFlight: { ...s.inFlight, [runId]: action }, lastError: null }));
     try {
       await invoke("workflow_respond_approval", { runId, approved });
+    } catch (e) {
+      const msg = normalizeError(e);
+      set({ lastError: msg, lastAction: action });
+      toast.error(`Failed to ${action} approval: ${msg}`);
     } finally {
       set((s) => { const { [runId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
     }
@@ -130,7 +148,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     enabled: boolean,
   ) => {
     if (get().inFlight[workflowId]) return;
-    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "toggle" } }));
+    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "toggle" }, lastError: null }));
     try {
       await invoke("workflow_toggle", { projectPath, workflowId, enabled });
       set((s) => ({
@@ -138,10 +156,16 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           w.id === workflowId ? { ...w, enabled } : w,
         ),
       }));
+    } catch (e) {
+      const msg = normalizeError(e);
+      set({ lastError: msg, lastAction: "toggle" });
+      toast.error(`Failed to toggle workflow: ${msg}`);
     } finally {
       set((s) => { const { [workflowId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
     }
   },
+
+  clearError: () => set({ lastError: null, lastAction: null }),
 
   startScheduler: async (projectPath: string) => {
     try {
