@@ -8,8 +8,10 @@ mod history;
 mod icon_themes;
 mod lsp;
 mod menu;
+mod plugins;
 mod scheduler;
 mod search;
+mod workflow;
 mod terminal;
 mod watcher;
 
@@ -31,6 +33,7 @@ pub fn run() {
         .manage(Mutex::new(mcp::McpState::new()))
         .manage(Mutex::new(lsp::LspManager::new()))
         .manage(Arc::new(Mutex::new(scheduler::SchedulerManager::new())))
+        .manage(Arc::new(Mutex::new(workflow::engine::WorkflowEngine::new())))
         .setup(|app| {
             let handle = app.handle().clone();
             let app_menu = menu::build_app_menu(&handle, &[], false)
@@ -52,6 +55,30 @@ pub fn run() {
                     scheduler_state,
                     scheduler_handle,
                 );
+            }
+
+            // Initialize workflow DB (async)
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    match workflow::db::WorkflowDb::new().await {
+                        Ok(db) => {
+                            app_handle.manage(Arc::new(db));
+                            eprintln!("[workflow] DB state registered");
+                        }
+                        Err(e) => {
+                            eprintln!("[workflow] DB init failed: {}", e);
+                        }
+                    }
+                });
+            }
+
+            // Ensure built-in plugins are installed (background, non-blocking)
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    plugins::ensure_builtin_plugins(app_handle).await;
+                });
             }
 
             Ok(())
@@ -118,6 +145,14 @@ pub fn run() {
             scheduler::scheduler_run_job_now,
             scheduler::scheduler_cancel_job,
             scheduler::scheduler_get_history,
+            workflow::workflow_list,
+            workflow::workflow_get,
+            workflow::workflow_run,
+            workflow::workflow_cancel,
+            workflow::workflow_get_runs,
+            workflow::workflow_toggle,
+            workflow::workflow_start_scheduler,
+            workflow::workflow_stop_scheduler,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
