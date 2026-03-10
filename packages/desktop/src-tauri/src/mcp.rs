@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use tauri::State;
 
 /// Per-server MCP session state
-struct SessionInfo {
+pub(crate) struct SessionInfo {
     session_id: Option<String>,
     next_id: u64,
 }
@@ -15,6 +15,8 @@ struct SessionInfo {
 /// Managed state for all MCP server connections
 pub(crate) struct McpState {
     sessions: HashMap<String, SessionInfo>,
+    /// Server name → URL registry (populated by mcp_connect)
+    server_registry: HashMap<String, String>,
     http: reqwest::Client,
 }
 
@@ -22,8 +24,19 @@ impl McpState {
     pub fn new() -> Self {
         Self {
             sessions: HashMap::new(),
+            server_registry: HashMap::new(),
             http: reqwest::Client::new(),
         }
+    }
+
+    /// Look up a server URL by name
+    pub(crate) fn get_server_url(&self, name: &str) -> Option<String> {
+        self.server_registry.get(name).cloned()
+    }
+
+    /// Get a clone of the HTTP client
+    pub(crate) fn http_client(&self) -> reqwest::Client {
+        self.http.clone()
     }
 }
 
@@ -36,7 +49,7 @@ pub(crate) struct McpToolInfo {
 }
 
 /// Send a JSON-RPC request to an MCP server
-async fn jsonrpc_request(
+pub(crate) async fn jsonrpc_request(
     http: &reqwest::Client,
     url: &str,
     session_id: Option<&str>,
@@ -114,7 +127,7 @@ async fn jsonrpc_request(
 }
 
 /// Send a JSON-RPC notification (no id, no response expected)
-async fn jsonrpc_notify(
+pub(crate) async fn jsonrpc_notify(
     http: &reqwest::Client,
     url: &str,
     session_id: Option<&str>,
@@ -145,6 +158,7 @@ async fn jsonrpc_notify(
 #[tauri::command]
 pub(crate) async fn mcp_connect(
     state: State<'_, Mutex<McpState>>,
+    name: String,
     url: String,
 ) -> Result<Vec<McpToolInfo>, String> {
     let t0 = Instant::now();
@@ -231,7 +245,7 @@ pub(crate) async fn mcp_connect(
         t2.elapsed().as_millis()
     );
 
-    // Store session
+    // Store session and register server name
     {
         let mut s = state.lock().map_err(|e| e.to_string())?;
         s.sessions.insert(
@@ -241,6 +255,7 @@ pub(crate) async fn mcp_connect(
                 next_id: 3, // Already used 1 (initialize) and 2 (tools/list)
             },
         );
+        s.server_registry.insert(name, url.clone());
     }
 
     eprintln!("[mcp] ready (total {}ms)", t0.elapsed().as_millis());

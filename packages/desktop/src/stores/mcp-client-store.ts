@@ -68,7 +68,7 @@ export const useMcpClientStore = create<McpClientState & McpClientActions>((set,
 
     try {
       // Rust handles: initialize → initialized → tools/list
-      const tools = await invoke<McpToolInfo[]>("mcp_connect", { url });
+      const tools = await invoke<McpToolInfo[]>("mcp_connect", { name: serverName, url });
       const t1 = performance.now();
       console.log(`[mcp-client] ${serverName}: connected, ${tools.length} tools (${(t1 - t0).toFixed(0)}ms)`);
 
