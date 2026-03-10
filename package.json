@@ -11,7 +11,8 @@
     "clean": "turbo clean",
     "test": "turbo test",
     "release": "./scripts/release.sh",
-    "test:e2e": "pnpm --filter @ral/desktop test:e2e"
+    "test:e2e": "pnpm --filter @ral/desktop test:e2e",
+    "test:e2e:full": "pnpm --filter @ral/desktop test:e2e:full"
   },
   "devDependencies": {
     "turbo": "^2"

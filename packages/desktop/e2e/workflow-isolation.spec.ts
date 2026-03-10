@@ -86,6 +86,17 @@ describe("Workflow Project Isolation", () => {
   });
 
   it("approval pending in Project A should not appear in Project B context", async () => {
+    // Install a trap listener for approval events scoped to project B.
+    // If any approval event arrives with project B's path, we record it.
+    await browser.execute(`
+      window.__e2e_approval_leak = [];
+      window.__TAURI__.event.listen('workflow-approval-pending', function(event) {
+        if (event.payload && event.payload.project_path === '${FIXTURE_B}') {
+          window.__e2e_approval_leak.push(event.payload);
+        }
+      });
+    `);
+
     // Run the approval workflow in A
     const workflowsA = await listWorkflows(FIXTURE_A);
     const approvalFlow = workflowsA.find(
@@ -97,6 +108,12 @@ describe("Workflow Project Isolation", () => {
 
     // Wait for approval event to fire
     await browser.pause(3000);
+
+    // Verify: no approval events leaked to project B's scope
+    const leaked = await browser.execute(
+      `return window.__e2e_approval_leak;`,
+    );
+    expect(leaked).toHaveLength(0);
 
     // Verify: project B has no runs from project A's approval workflow
     const runsB = await getWorkflowRuns(FIXTURE_B);

@@ -15,6 +15,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   recentProjects: [],
 
   selectFolder: (path) => {
+    // Stop scheduler for the previous project before switching
+    const oldPath = get().projectPath;
+    if (oldPath && oldPath !== path) {
+      import("./workflow-store").then(({ useWorkflowStore }) => {
+        useWorkflowStore.getState().stopScheduler(oldPath);
+      });
+    }
+
     const prev = get().recentProjects;
     const updated = [path, ...prev.filter((p) => p !== path)].slice(0, 5);
     set({ projectPath: path, recentProjects: updated });
