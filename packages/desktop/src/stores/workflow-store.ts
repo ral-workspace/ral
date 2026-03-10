@@ -18,18 +18,21 @@ import {
 
 // ── Store ──
 
+export type WorkflowInFlightAction = "run" | "cancel" | "toggle" | "approve" | "reject";
+
 interface WorkflowState {
   workflows: WorkflowSummary[];
   runs: WorkflowRun[];
   runningWorkflows: Set<string>;
   pendingApprovals: PendingApproval[];
   isLoading: boolean;
+  inFlight: Record<string, WorkflowInFlightAction | undefined>;
 
   _init: (projectPath: string) => Promise<void>;
   fetchWorkflows: (projectPath: string) => Promise<void>;
   fetchRuns: (projectPath: string, workflowId?: string) => Promise<void>;
   runWorkflow: (projectPath: string, workflowId: string) => Promise<void>;
-  cancelWorkflow: (runId: string) => Promise<void>;
+  cancelWorkflow: (runId: string, workflowId: string) => Promise<void>;
   respondApproval: (runId: string, approved: boolean) => Promise<void>;
   toggleWorkflow: (
     projectPath: string,
@@ -46,6 +49,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   runningWorkflows: new Set(),
   pendingApprovals: [],
   isLoading: false,
+  inFlight: {},
 
   _init: async (projectPath: string) => {
     await get().fetchWorkflows(projectPath);
@@ -90,15 +94,34 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   runWorkflow: async (projectPath: string, workflowId: string) => {
-    await invoke<string>("workflow_run", { projectPath, workflowId });
+    if (get().inFlight[workflowId]) return;
+    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "run" } }));
+    try {
+      await invoke<string>("workflow_run", { projectPath, workflowId });
+    } finally {
+      set((s) => { const { [workflowId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
+    }
   },
 
-  cancelWorkflow: async (runId: string) => {
-    await invoke("workflow_cancel", { runId });
+  cancelWorkflow: async (runId: string, workflowId: string) => {
+    if (get().inFlight[workflowId]) return;
+    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "cancel" } }));
+    try {
+      await invoke("workflow_cancel", { runId });
+    } finally {
+      set((s) => { const { [workflowId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
+    }
   },
 
   respondApproval: async (runId: string, approved: boolean) => {
-    await invoke("workflow_respond_approval", { runId, approved });
+    const action = approved ? "approve" : "reject";
+    if (get().inFlight[runId]) return;
+    set((s) => ({ inFlight: { ...s.inFlight, [runId]: action } }));
+    try {
+      await invoke("workflow_respond_approval", { runId, approved });
+    } finally {
+      set((s) => { const { [runId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
+    }
   },
 
   toggleWorkflow: async (
@@ -106,12 +129,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     workflowId: string,
     enabled: boolean,
   ) => {
-    await invoke("workflow_toggle", { projectPath, workflowId, enabled });
-    set((s) => ({
-      workflows: s.workflows.map((w) =>
-        w.id === workflowId ? { ...w, enabled } : w,
-      ),
-    }));
+    if (get().inFlight[workflowId]) return;
+    set((s) => ({ inFlight: { ...s.inFlight, [workflowId]: "toggle" } }));
+    try {
+      await invoke("workflow_toggle", { projectPath, workflowId, enabled });
+      set((s) => ({
+        workflows: s.workflows.map((w) =>
+          w.id === workflowId ? { ...w, enabled } : w,
+        ),
+      }));
+    } finally {
+      set((s) => { const { [workflowId]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
+    }
   },
 
   startScheduler: async (projectPath: string) => {

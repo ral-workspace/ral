@@ -11,11 +11,14 @@ import {
 
 // ── Store ──
 
+export type JobInFlightAction = "run" | "cancel" | "toggle";
+
 interface JobState {
   jobs: JobDef[];
   history: JobRun[];
   runningJobIds: Set<string>;
   isLoading: boolean;
+  inFlight: Record<string, JobInFlightAction | undefined>;
 
   _init: () => Promise<void>;
   fetchJobs: () => Promise<void>;
@@ -33,6 +36,7 @@ export const useJobStore = create<JobState>((set, get) => ({
   history: [],
   runningJobIds: new Set(),
   isLoading: false,
+  inFlight: {},
 
   _init: async () => {
     await get().fetchJobs();
@@ -83,18 +87,36 @@ export const useJobStore = create<JobState>((set, get) => ({
   },
 
   toggleJob: async (id: string, enabled: boolean) => {
-    await invoke("scheduler_toggle_job", { id, enabled });
-    set((s) => ({
-      jobs: s.jobs.map((j) => (j.id === id ? { ...j, enabled } : j)),
-    }));
+    if (get().inFlight[id]) return;
+    set((s) => ({ inFlight: { ...s.inFlight, [id]: "toggle" } }));
+    try {
+      await invoke("scheduler_toggle_job", { id, enabled });
+      set((s) => ({
+        jobs: s.jobs.map((j) => (j.id === id ? { ...j, enabled } : j)),
+      }));
+    } finally {
+      set((s) => { const { [id]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
+    }
   },
 
   runJobNow: async (id: string) => {
-    await invoke("scheduler_run_job_now", { id });
+    if (get().inFlight[id]) return;
+    set((s) => ({ inFlight: { ...s.inFlight, [id]: "run" } }));
+    try {
+      await invoke("scheduler_run_job_now", { id });
+    } finally {
+      set((s) => { const { [id]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
+    }
   },
 
   cancelJob: async (id: string) => {
-    await invoke("scheduler_cancel_job", { id });
+    if (get().inFlight[id]) return;
+    set((s) => ({ inFlight: { ...s.inFlight, [id]: "cancel" } }));
+    try {
+      await invoke("scheduler_cancel_job", { id });
+    } finally {
+      set((s) => { const { [id]: _, ...rest } = s.inFlight; return { inFlight: rest }; });
+    }
   },
 }));
 

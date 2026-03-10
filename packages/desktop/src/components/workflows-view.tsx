@@ -74,6 +74,7 @@ export function WorkflowsView() {
     runningWorkflows,
     pendingApprovals,
     isLoading,
+    inFlight,
     _init,
     toggleWorkflow,
     runWorkflow,
@@ -134,18 +135,28 @@ export function WorkflowsView() {
                     size="xs"
                     variant="outline"
                     className="gap-1 text-green-600 hover:bg-green-500/10 hover:text-green-600"
+                    disabled={Boolean(inFlight[approval.runId])}
                     onClick={() => respondApproval(approval.runId, true)}
                   >
-                    <IconShieldCheck size={14} />
+                    {inFlight[approval.runId] === "approve" ? (
+                      <IconLoader2 size={14} className="animate-spin" />
+                    ) : (
+                      <IconShieldCheck size={14} />
+                    )}
                     Approve
                   </Button>
                   <Button
                     size="xs"
                     variant="outline"
                     className="gap-1 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                    disabled={Boolean(inFlight[approval.runId])}
                     onClick={() => respondApproval(approval.runId, false)}
                   >
-                    <IconShieldX size={14} />
+                    {inFlight[approval.runId] === "reject" ? (
+                      <IconLoader2 size={14} className="animate-spin" />
+                    ) : (
+                      <IconShieldX size={14} />
+                    )}
                     Reject
                   </Button>
                 </div>
@@ -211,6 +222,7 @@ export function WorkflowsView() {
                     <ItemActions className="flex items-center gap-1">
                       <Switch
                         checked={wf.enabled}
+                        disabled={Boolean(inFlight[wf.id])}
                         onCheckedChange={(v: boolean) =>
                           toggleWorkflow(projectPath, wf.id, v)
                         }
@@ -219,26 +231,36 @@ export function WorkflowsView() {
                         <Button
                           size="icon-xs"
                           variant="ghost"
+                          disabled={Boolean(inFlight[wf.id])}
                           onClick={() => {
                             const run = runs.find(
                               (r) =>
                                 r.workflow_id === wf.id &&
                                 r.status === "running",
                             );
-                            if (run) cancelWorkflow(run.id);
+                            if (run) cancelWorkflow(run.id, wf.id);
                           }}
                           title="Cancel"
                         >
-                          <IconPlayerStop size={14} />
+                          {inFlight[wf.id] === "cancel" ? (
+                            <IconLoader2 size={14} className="animate-spin" />
+                          ) : (
+                            <IconPlayerStop size={14} />
+                          )}
                         </Button>
                       ) : (
                         <Button
                           size="icon-xs"
                           variant="ghost"
+                          disabled={Boolean(inFlight[wf.id])}
                           onClick={() => runWorkflow(projectPath, wf.id)}
                           title="Run now"
                         >
-                          <IconPlayerPlay size={14} />
+                          {inFlight[wf.id] === "run" ? (
+                            <IconLoader2 size={14} className="animate-spin" />
+                          ) : (
+                            <IconPlayerPlay size={14} />
+                          )}
                         </Button>
                       )}
                     </ItemActions>

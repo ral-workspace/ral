@@ -84,6 +84,7 @@ export function AutomationSettings() {
     history,
     runningJobIds,
     isLoading,
+    inFlight,
     _init,
     toggleJob,
     deleteJob,
@@ -162,25 +163,36 @@ export function AutomationSettings() {
                     <ItemActions className="flex items-center gap-1">
                       <Switch
                         checked={job.enabled}
+                        disabled={Boolean(inFlight[job.id])}
                         onCheckedChange={(v: boolean) => toggleJob(job.id, v)}
                       />
                       {isRunning ? (
                         <Button
                           size="icon-xs"
                           variant="ghost"
+                          disabled={Boolean(inFlight[job.id])}
                           onClick={() => cancelJob(job.id)}
                           title="Cancel"
                         >
-                          <IconPlayerStop size={14} />
+                          {inFlight[job.id] === "cancel" ? (
+                            <IconLoader2 size={14} className="animate-spin" />
+                          ) : (
+                            <IconPlayerStop size={14} />
+                          )}
                         </Button>
                       ) : (
                         <Button
                           size="icon-xs"
                           variant="ghost"
+                          disabled={Boolean(inFlight[job.id])}
                           onClick={() => runJobNow(job.id)}
                           title="Run now"
                         >
-                          <IconPlayerPlay size={14} />
+                          {inFlight[job.id] === "run" ? (
+                            <IconLoader2 size={14} className="animate-spin" />
+                          ) : (
+                            <IconPlayerPlay size={14} />
+                          )}
                         </Button>
                       )}
                       <Button
