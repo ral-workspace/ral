@@ -5,6 +5,7 @@ import { useEditorStore, useWorkspaceStore } from "../stores";
 import type { OpenTab, EditorGroup } from "../types/editor";
 import { FileIcon } from "./file-icon";
 import { type NativeMenuItem, showNativeContextMenu } from "../lib/native-context-menu";
+import { confirmAndClose, confirmAndCloseMultiple } from "../lib/close-guards";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 function getTabIcon(tab: OpenTab) {
@@ -171,24 +172,35 @@ export function TabBar({ groupId }: TabBarProps) {
         );
       }
 
-      showNativeContextMenu(items).then((actionId) => {
+      showNativeContextMenu(items).then(async (actionId) => {
         if (!actionId) return;
         switch (actionId) {
-          case "close":
-            closeTabInGroup(groupId, tab.id);
+          case "close": {
+            const r = await confirmAndClose(tab.id);
+            if (r !== "cancelled") closeTabInGroup(groupId, tab.id);
             break;
-          case "close-others":
-            closeOtherTabsInGroup(groupId, tab.id);
+          }
+          case "close-others": {
+            const otherIds = openTabs.filter((t) => t.id !== tab.id).map((t) => t.id);
+            const r = await confirmAndCloseMultiple(otherIds);
+            if (r !== "cancelled") closeOtherTabsInGroup(groupId, tab.id);
             break;
-          case "close-right":
-            closeTabsToTheRightInGroup(groupId, tab.id);
+          }
+          case "close-right": {
+            const rightIds = openTabs.slice(index + 1).map((t) => t.id);
+            const r = await confirmAndCloseMultiple(rightIds);
+            if (r !== "cancelled") closeTabsToTheRightInGroup(groupId, tab.id);
             break;
+          }
           case "close-saved":
             closeSavedTabsInGroup(groupId);
             break;
-          case "close-all":
-            closeAllTabsInGroup(groupId);
+          case "close-all": {
+            const allIds = openTabs.map((t) => t.id);
+            const r = await confirmAndCloseMultiple(allIds);
+            if (r !== "cancelled") closeAllTabsInGroup(groupId);
             break;
+          }
           case "split-right":
             splitGroup(groupId, "horizontal");
             break;
@@ -212,14 +224,22 @@ export function TabBar({ groupId }: TabBarProps) {
     [openTabs, groupId, closeTabInGroup, closeOtherTabsInGroup, closeTabsToTheRightInGroup, closeSavedTabsInGroup, closeAllTabsInGroup, splitGroup],
   );
 
+  const handleGuardedClose = useCallback(
+    async (tabId: string) => {
+      const result = await confirmAndClose(tabId);
+      if (result !== "cancelled") closeTabInGroup(groupId, tabId);
+    },
+    [groupId, closeTabInGroup],
+  );
+
   const handleAuxClick = useCallback(
     (e: React.MouseEvent, tabId: string) => {
       if (e.button === 1) {
         e.preventDefault();
-        closeTabInGroup(groupId, tabId);
+        handleGuardedClose(tabId);
       }
     },
-    [groupId, closeTabInGroup],
+    [handleGuardedClose],
   );
 
   return (
@@ -268,7 +288,7 @@ export function TabBar({ groupId }: TabBarProps) {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  closeTabInGroup(groupId, tab.id);
+                  handleGuardedClose(tab.id);
                 }}
                 className="ml-1 flex size-4 items-center justify-center rounded group-hover:opacity-100"
               >

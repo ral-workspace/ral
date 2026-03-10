@@ -7,11 +7,9 @@ import {
   useEditorStore,
   useSettingsStore,
 } from "../stores";
-import {
-  getActiveEditorView,
-  getBufferContent,
-} from "../hooks/use-codemirror";
+import { getActiveEditorView, getBufferContent } from "../hooks/use-codemirror";
 import { addHistoryEntry } from "../services/history-service";
+import { confirmAndClose, confirmAndCloseMultiple } from "../lib/close-guards";
 import { EVENTS } from "../types/events";
 
 /**
@@ -34,7 +32,9 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       if (projectPath) {
         invoke("create_file", { path: `${projectPath}/Untitled` })
           .then(() => {
-            useEditorStore.getState().openFile(`${projectPath}/Untitled`, false);
+            useEditorStore
+              .getState()
+              .openFile(`${projectPath}/Untitled`, false);
             useLayoutStore.getState().bumpFileTreeRefresh();
           })
           .catch(() => {});
@@ -144,12 +144,19 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
       }
     }),
 
-    listen(EVENTS.MENU_CLOSE_EDITOR, () => {
+    listen(EVENTS.MENU_CLOSE_EDITOR, async () => {
       const { activeTabId, closeTab } = useEditorStore.getState();
-      if (activeTabId) closeTab(activeTabId);
+      if (!activeTabId) return;
+      const result = await confirmAndClose(activeTabId);
+      if (result !== "cancelled") closeTab(activeTabId);
     }),
 
     listen(EVENTS.MENU_CLOSE_FOLDER, async () => {
+      const { dirtyFiles } = useEditorStore.getState();
+      if (dirtyFiles.size > 0) {
+        const result = await confirmAndCloseMultiple([...dirtyFiles]);
+        if (result === "cancelled") return;
+      }
       const closingPath = useWorkspaceStore.getState().projectPath;
       useWorkspaceStore.setState({ projectPath: null });
       useEditorStore.getState().closeAllTabs();
@@ -165,9 +172,7 @@ export function registerMenuHandlers(onCommandPalette: () => void): () => void {
 
     listen<string>(EVENTS.MENU_ZOOM, (event) => {
       const root = document.documentElement;
-      const current = parseFloat(
-        root.style.getPropertyValue("--zoom") || "1",
-      );
+      const current = parseFloat(root.style.getPropertyValue("--zoom") || "1");
       let next = current;
       switch (event.payload) {
         case "in":
