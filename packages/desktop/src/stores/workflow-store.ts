@@ -30,6 +30,8 @@ interface WorkflowState {
   inFlight: Record<string, WorkflowInFlightAction | undefined>;
   lastError: string | null;
   lastAction: string | null;
+  /** Track which project path the scheduler is running for (prevents redundant starts) */
+  activeSchedulerPath: string | null;
 
   _init: (projectPath: string) => Promise<void>;
   fetchWorkflows: (projectPath: string) => Promise<void>;
@@ -56,6 +58,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   inFlight: {},
   lastError: null,
   lastAction: null,
+  activeSchedulerPath: null,
 
   _init: async (projectPath: string) => {
     await get().fetchWorkflows(projectPath);
@@ -69,7 +72,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }
     set({ runningWorkflows: running, pendingApprovals: [] });
 
-    await get().startScheduler(projectPath);
+    // Only start scheduler if not already running for this project
+    if (get().activeSchedulerPath !== projectPath) {
+      await get().startScheduler(projectPath);
+    }
   },
 
   fetchWorkflows: async (projectPath: string) => {
@@ -170,6 +176,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   startScheduler: async (projectPath: string) => {
     try {
       await invoke("workflow_start_scheduler", { projectPath });
+      set({ activeSchedulerPath: projectPath });
     } catch (e) {
       console.error("[workflow] startScheduler error:", e);
     }
@@ -178,6 +185,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   stopScheduler: async (projectPath: string) => {
     try {
       await invoke("workflow_stop_scheduler", { projectPath });
+      set((s) =>
+        s.activeSchedulerPath === projectPath
+          ? { activeSchedulerPath: null }
+          : s
+      );
     } catch (e) {
       console.error("[workflow] stopScheduler error:", e);
     }
