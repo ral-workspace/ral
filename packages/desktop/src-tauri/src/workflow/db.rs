@@ -53,6 +53,28 @@ impl WorkflowDb {
         .await
         .map_err(|e| format!("Failed to create index: {}", e))?;
 
+        // Migration: add project_path column if missing
+        let columns: Vec<(String,)> = sqlx::query_as(
+            "SELECT name FROM pragma_table_info('workflow_runs') WHERE name = 'project_path'",
+        )
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| format!("Failed to check columns: {}", e))?;
+
+        if columns.is_empty() {
+            sqlx::query("ALTER TABLE workflow_runs ADD COLUMN project_path TEXT")
+                .execute(&pool)
+                .await
+                .map_err(|e| format!("Failed to add project_path column: {}", e))?;
+            sqlx::query(
+                "CREATE INDEX IF NOT EXISTS idx_workflow_runs_project ON workflow_runs(project_path)",
+            )
+            .execute(&pool)
+            .await
+            .map_err(|e| format!("Failed to create project_path index: {}", e))?;
+            eprintln!("[workflow] migrated: added project_path column");
+        }
+
         // Clean up stale "running" runs from previous app session
         let stale = sqlx::query(
             r#"
@@ -78,12 +100,13 @@ impl WorkflowDb {
 
         sqlx::query(
             r#"
-            INSERT INTO workflow_runs (id, workflow_id, status, started_at, finished_at, steps_json, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO workflow_runs (id, workflow_id, project_path, status, started_at, finished_at, steps_json, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&run.id)
         .bind(&run.workflow_id)
+        .bind(&run.project_path)
         .bind(&run.status)
         .bind(&run.started_at)
         .bind(&run.finished_at)
@@ -121,14 +144,50 @@ impl WorkflowDb {
 
     pub async fn get_runs(
         &self,
+        project_path: Option<&str>,
         workflow_id: Option<&str>,
         limit: i64,
     ) -> Result<Vec<WorkflowRun>, String> {
-        let rows: Vec<(String, String, String, String, Option<String>, Option<String>, Option<String>)> =
-            if let Some(wid) = workflow_id {
+        type Row = (String, String, Option<String>, String, String, Option<String>, Option<String>, Option<String>);
+
+        let rows: Vec<Row> = match (project_path, workflow_id) {
+            (Some(pp), Some(wid)) => {
                 sqlx::query_as(
                     r#"
-                    SELECT id, workflow_id, status, started_at, finished_at, steps_json, error
+                    SELECT id, workflow_id, project_path, status, started_at, finished_at, steps_json, error
+                    FROM workflow_runs
+                    WHERE project_path = ? AND workflow_id = ?
+                    ORDER BY started_at DESC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(pp)
+                .bind(wid)
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| format!("DB query error: {}", e))?
+            }
+            (Some(pp), None) => {
+                sqlx::query_as(
+                    r#"
+                    SELECT id, workflow_id, project_path, status, started_at, finished_at, steps_json, error
+                    FROM workflow_runs
+                    WHERE project_path = ?
+                    ORDER BY started_at DESC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(pp)
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| format!("DB query error: {}", e))?
+            }
+            (None, Some(wid)) => {
+                sqlx::query_as(
+                    r#"
+                    SELECT id, workflow_id, project_path, status, started_at, finished_at, steps_json, error
                     FROM workflow_runs
                     WHERE workflow_id = ?
                     ORDER BY started_at DESC
@@ -140,10 +199,11 @@ impl WorkflowDb {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| format!("DB query error: {}", e))?
-            } else {
+            }
+            (None, None) => {
                 sqlx::query_as(
                     r#"
-                    SELECT id, workflow_id, status, started_at, finished_at, steps_json, error
+                    SELECT id, workflow_id, project_path, status, started_at, finished_at, steps_json, error
                     FROM workflow_runs
                     ORDER BY started_at DESC
                     LIMIT ?
@@ -153,16 +213,38 @@ impl WorkflowDb {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| format!("DB query error: {}", e))?
-            };
+            }
+        };
 
         Ok(rows.into_iter().map(row_to_run).collect())
     }
 
-    pub async fn get_last_run(&self, workflow_id: &str) -> Result<Option<WorkflowRun>, String> {
-        let row: Option<(String, String, String, String, Option<String>, Option<String>, Option<String>)> =
+    pub async fn get_last_run(
+        &self,
+        workflow_id: &str,
+        project_path: Option<&str>,
+    ) -> Result<Option<WorkflowRun>, String> {
+        type Row = (String, String, Option<String>, String, String, Option<String>, Option<String>, Option<String>);
+
+        let row: Option<Row> = if let Some(pp) = project_path {
             sqlx::query_as(
                 r#"
-                SELECT id, workflow_id, status, started_at, finished_at, steps_json, error
+                SELECT id, workflow_id, project_path, status, started_at, finished_at, steps_json, error
+                FROM workflow_runs
+                WHERE workflow_id = ? AND project_path = ?
+                ORDER BY started_at DESC
+                LIMIT 1
+                "#,
+            )
+            .bind(workflow_id)
+            .bind(pp)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| format!("DB query error: {}", e))?
+        } else {
+            sqlx::query_as(
+                r#"
+                SELECT id, workflow_id, project_path, status, started_at, finished_at, steps_json, error
                 FROM workflow_runs
                 WHERE workflow_id = ?
                 ORDER BY started_at DESC
@@ -172,7 +254,8 @@ impl WorkflowDb {
             .bind(workflow_id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| format!("DB query error: {}", e))?;
+            .map_err(|e| format!("DB query error: {}", e))?
+        };
 
         Ok(row.map(row_to_run))
     }
@@ -182,6 +265,7 @@ fn row_to_run(
     row: (
         String,
         String,
+        Option<String>,
         String,
         String,
         Option<String>,
@@ -190,7 +274,7 @@ fn row_to_run(
     ),
 ) -> WorkflowRun {
     let steps: Vec<StepResult> = row
-        .5
+        .6
         .as_deref()
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
@@ -198,10 +282,11 @@ fn row_to_run(
     WorkflowRun {
         id: row.0,
         workflow_id: row.1,
-        status: row.2,
-        started_at: row.3,
-        finished_at: row.4,
+        project_path: row.2,
+        status: row.3,
+        started_at: row.4,
+        finished_at: row.5,
         steps,
-        error: row.6,
+        error: row.7,
     }
 }

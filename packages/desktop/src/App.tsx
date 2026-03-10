@@ -186,9 +186,14 @@ function App() {
         const { activeTabId, closeTab } = useEditorStore.getState();
         if (activeTabId) closeTab(activeTabId);
       }),
-      listen("menu-close-folder", () => {
+      listen("menu-close-folder", async () => {
+        const closingPath = useWorkspaceStore.getState().projectPath;
         useWorkspaceStore.setState({ projectPath: null });
         useEditorStore.getState().closeAllTabs();
+        if (closingPath) {
+          const { useWorkflowStore } = await import("./stores/workflow-store");
+          await useWorkflowStore.getState().stopScheduler(closingPath);
+        }
       }),
       listen("menu-command-palette", () => {
         setCommandPaletteOpen(true);

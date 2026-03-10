@@ -14,9 +14,9 @@ pub struct WorkflowEngine {
     /// Active run cancellation channels: run_id → sender
     running: HashMap<String, broadcast::Sender<()>>,
     /// Pending approval responses: "run_id:step_id" → oneshot sender
-    pending_approvals: HashMap<String, oneshot::Sender<bool>>,
-    /// Scheduler cancel handle
-    scheduler_cancel: Option<broadcast::Sender<()>>,
+    pub(crate) pending_approvals: HashMap<String, oneshot::Sender<bool>>,
+    /// Scheduler cancel handles: project_path → sender
+    scheduler_cancels: HashMap<String, broadcast::Sender<()>>,
 }
 
 impl WorkflowEngine {
@@ -24,7 +24,7 @@ impl WorkflowEngine {
         Self {
             running: HashMap::new(),
             pending_approvals: HashMap::new(),
-            scheduler_cancel: None,
+            scheduler_cancels: HashMap::new(),
         }
     }
 
@@ -76,14 +76,20 @@ impl WorkflowEngine {
         }
     }
 
-    pub fn stop_scheduler(&mut self) {
-        if let Some(tx) = self.scheduler_cancel.take() {
+    pub fn stop_scheduler(&mut self, project_path: &str) {
+        if let Some(tx) = self.scheduler_cancels.remove(project_path) {
             let _ = tx.send(());
         }
     }
 
-    pub fn set_scheduler_cancel(&mut self, tx: broadcast::Sender<()>) {
-        self.scheduler_cancel = Some(tx);
+    pub fn stop_all_schedulers(&mut self) {
+        for (_, tx) in self.scheduler_cancels.drain() {
+            let _ = tx.send(());
+        }
+    }
+
+    pub fn set_scheduler_cancel(&mut self, project_path: String, tx: broadcast::Sender<()>) {
+        self.scheduler_cancels.insert(project_path, tx);
     }
 }
 
@@ -125,6 +131,7 @@ pub async fn execute_workflow(
     let mut run = WorkflowRun {
         id: run_id.to_string(),
         workflow_id: workflow_id.to_string(),
+        project_path: Some(project_path.to_string()),
         status: "running".to_string(),
         started_at: now.clone(),
         finished_at: None,
@@ -136,11 +143,11 @@ pub async fn execute_workflow(
     // Emit start event
     let _ = app.emit(
         "workflow-run-started",
-        json!({ "workflow_id": workflow_id, "run_id": run_id }),
+        json!({ "workflow_id": workflow_id, "run_id": run_id, "project_path": project_path }),
     );
 
     // Initialize template context
-    let last_run = db.get_last_run(workflow_id).await.ok().flatten();
+    let last_run = db.get_last_run(workflow_id, Some(project_path)).await.ok().flatten();
     let last_run_at = last_run.and_then(|r| {
         if r.id == run_id {
             None // Don't use current run as "last"
@@ -172,6 +179,7 @@ pub async fn execute_workflow(
                     "step_id": step.id,
                     "step_tool": step.tool,
                     "step_agent": step.agent,
+                    "project_path": project_path,
                 }),
             );
 
@@ -208,6 +216,7 @@ pub async fn execute_workflow(
                     "run_id": run_id,
                     "step_id": step.id,
                     "approved": approved,
+                    "project_path": project_path,
                 }),
             );
 
@@ -320,6 +329,7 @@ pub async fn execute_workflow(
             "run_id": run_id,
             "workflow_id": workflow_id,
             "status": run.status,
+            "project_path": project_path,
         }),
     );
 

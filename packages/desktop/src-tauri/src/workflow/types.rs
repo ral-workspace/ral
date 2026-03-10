@@ -163,6 +163,8 @@ pub struct WorkflowSummary {
 pub struct WorkflowRun {
     pub id: String,
     pub workflow_id: String,
+    #[serde(default)]
+    pub project_path: Option<String>,
     pub status: String,
     pub started_at: String,
     pub finished_at: Option<String>,

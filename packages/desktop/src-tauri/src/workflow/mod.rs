@@ -25,7 +25,7 @@ pub(crate) async fn workflow_list(
 
     let mut summaries = Vec::new();
     for (id, def, file_path) in workflows {
-        let last_run = db.get_last_run(&id).await.ok().flatten();
+        let last_run = db.get_last_run(&id, Some(&project_path)).await.ok().flatten();
         let schedule_desc = def
             .trigger
             .schedule
@@ -116,12 +116,17 @@ pub(crate) async fn workflow_cancel(
 #[tauri::command]
 pub(crate) async fn workflow_get_runs(
     db_state: State<'_, Arc<WorkflowDb>>,
+    project_path: String,
     workflow_id: Option<String>,
     limit: Option<u32>,
 ) -> Result<Vec<WorkflowRun>, String> {
     let db = db_state.inner();
-    db.get_runs(workflow_id.as_deref(), limit.unwrap_or(20) as i64)
-        .await
+    db.get_runs(
+        Some(&project_path),
+        workflow_id.as_deref(),
+        limit.unwrap_or(20) as i64,
+    )
+    .await
 }
 
 /// Toggle workflow enabled/disabled
@@ -176,13 +181,14 @@ pub(crate) async fn workflow_start_scheduler(
     Ok(())
 }
 
-/// Stop the workflow scheduler
+/// Stop the workflow scheduler for a project
 #[tauri::command]
 pub(crate) async fn workflow_stop_scheduler(
     engine_state: State<'_, Arc<Mutex<WorkflowEngine>>>,
+    project_path: String,
 ) -> Result<(), String> {
     let mut engine = engine_state.lock().map_err(|e| e.to_string())?;
-    engine.stop_scheduler();
+    engine.stop_scheduler(&project_path);
     Ok(())
 }
 
