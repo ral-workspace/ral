@@ -92,7 +92,7 @@ export function EditorPane({ groupId, className }: EditorPaneProps) {
         ) : activeTab && isImageFile(activeTab.id) ? (
           <ImagePreview filePath={activeTab.id} />
         ) : activeTab ? (
-          <CodeMirrorEditor key={activeTab.id} filePath={activeTab.id} />
+          <CodeMirrorEditor key={activeTab.id} filePath={activeTab.id} groupId={groupId} />
         ) : null}
       </div>
     </div>

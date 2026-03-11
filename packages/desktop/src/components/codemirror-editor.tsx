@@ -4,11 +4,12 @@ import { EditorLoadingState, EditorErrorState } from "./common/editor-states";
 
 interface CodeMirrorEditorProps {
   filePath: string;
+  groupId: string;
 }
 
-export function CodeMirrorEditor({ filePath }: CodeMirrorEditorProps) {
+export function CodeMirrorEditor({ filePath, groupId }: CodeMirrorEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { loading, error } = useCodeMirror({ filePath, containerRef });
+  const { loading, error } = useCodeMirror({ filePath, containerRef, groupId });
 
   if (loading) {
     return <EditorLoadingState />;

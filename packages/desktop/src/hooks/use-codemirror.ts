@@ -125,12 +125,27 @@ function createCompartments() {
   };
 }
 
-// --- Active editor view (module-level, for external access) ---
+// --- Active editor views per group (for multi-pane support) ---
 
-let activeEditorView: EditorView | null = null;
+const editorViewsByGroup = new Map<string, EditorView>();
+let currentActiveGroupId = "group-1";
+
+export function setActiveGroupId(groupId: string): void {
+  currentActiveGroupId = groupId;
+}
+
+export function setGroupEditorView(groupId: string, view: EditorView): void {
+  editorViewsByGroup.set(groupId, view);
+}
+
+export function clearGroupEditorView(groupId: string, view: EditorView): void {
+  if (editorViewsByGroup.get(groupId) === view) {
+    editorViewsByGroup.delete(groupId);
+  }
+}
 
 export function getActiveEditorView(): EditorView | null {
-  return activeEditorView;
+  return editorViewsByGroup.get(currentActiveGroupId) ?? null;
 }
 
 // --- Editor update subscription (for external consumers like breadcrumb) ---
@@ -169,6 +184,7 @@ export function getBufferContent(path: string): string | null {
 interface UseCodeMirrorOptions {
   filePath: string | null;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  groupId: string;
 }
 
 interface UseCodeMirrorReturn {
@@ -179,6 +195,7 @@ interface UseCodeMirrorReturn {
 export function useCodeMirror({
   filePath,
   containerRef,
+  groupId,
 }: UseCodeMirrorOptions): UseCodeMirrorReturn {
   const settings = useSettingsStore((s) => s.settings);
   const { resolvedTheme } = useTheme();
@@ -353,7 +370,7 @@ export function useCodeMirror({
     });
 
     editorViewRef.current = view;
-    activeEditorView = view;
+    setGroupEditorView(groupId, view);
 
     // Load diff markers
     refreshDiffMarkers(filePath);
@@ -378,9 +395,9 @@ export function useCodeMirror({
       }
       view.destroy();
       editorViewRef.current = null;
-      if (activeEditorView === view) activeEditorView = null;
+      clearGroupEditorView(groupId, view);
     };
-  }, [content, filePath]);
+  }, [content, filePath, groupId]);
 
   // Reconfigure on settings change
   useEffect(() => {

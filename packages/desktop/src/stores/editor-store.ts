@@ -1,29 +1,13 @@
 import { create } from "zustand";
-import { load, type Store } from "@tauri-apps/plugin-store";
 import type { OpenTab, EditorGroup, SplitNode } from "../types/editor";
 import { SETTINGS_TAB_ID, BROWSER_TAB_PREFIX, DIFF_TAB_PREFIX, PREVIEW_TAB_PREFIX, DATABASE_TAB_PREFIX, MARKDOWN_TAB_PREFIX, WORKFLOWS_TAB_ID } from "../types/editor";
 import { useDiffStore } from "./diff-store";
 import { useDatabaseStore } from "./database-store";
-import { invalidateBufferCache } from "../hooks/use-codemirror";
+import { invalidateBufferCache, setActiveGroupId } from "../hooks/use-codemirror";
+import { removeGroupFromTree, findGroupIds, insertSplit } from "./editor-split";
+import { saveLayout, restoreLayout, setupAutoSave } from "./editor-layout-persistence";
 
-// --- Split tree helpers ---
-
-function removeGroupFromTree(node: SplitNode, groupId: string): SplitNode | null {
-  if (node.type === "leaf") {
-    return node.groupId === groupId ? null : node;
-  }
-  const children = node.children
-    .map((c) => removeGroupFromTree(c, groupId))
-    .filter((c): c is SplitNode => c !== null);
-  if (children.length === 0) return null;
-  if (children.length === 1) return children[0];
-  return { ...node, children };
-}
-
-export function findGroupIds(node: SplitNode): string[] {
-  if (node.type === "leaf") return [node.groupId];
-  return node.children.flatMap(findGroupIds);
-}
+export { findGroupIds } from "./editor-split";
 
 // --- Tab cleanup ---
 
@@ -465,6 +449,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActiveGroup: (groupId) => {
     const group = get().groups.get(groupId);
     if (!group) return;
+    setActiveGroupId(groupId);
     set({
       activeGroupId: groupId,
       openTabs: group.openTabs,
@@ -495,6 +480,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Insert new group into split tree
     const newRoot = insertSplit(splitRoot, groupId, newGroupId, direction);
 
+    setActiveGroupId(newGroupId);
     set({
       groups: newGroups,
       splitRoot: newRoot,
@@ -529,6 +515,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const newActiveGroup = newGroups.get(newActiveGroupId)!;
+    setActiveGroupId(newActiveGroupId);
     set({
       groups: newGroups,
       splitRoot: fallbackRoot,
@@ -552,6 +539,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           openTabs: g.openTabs.map((t) => t.id === path ? { ...t, pinned: true } : t),
           activeTabId: path,
         }));
+        setActiveGroupId(groupId);
         set({
           groups: newGroups,
           activeGroupId: groupId,
@@ -560,6 +548,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         });
       } else {
         const newGroups = updateGroup(groups, groupId, (g) => ({ ...g, activeTabId: path }));
+        setActiveGroupId(groupId);
         set({
           groups: newGroups,
           activeGroupId: groupId,
@@ -576,6 +565,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       openTabs: [...g.openTabs, { id: path, name, pinned, type: "file" }],
       activeTabId: path,
     }));
+    setActiveGroupId(groupId);
     set({
       groups: newGroups,
       activeGroupId: groupId,
@@ -627,11 +617,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectTabInGroup: (groupId, tabId) => {
     const { groups } = get();
     const newGroups = updateGroup(groups, groupId, (g) => ({ ...g, activeTabId: tabId }));
-    const isActive = groupId === get().activeGroupId;
+    setActiveGroupId(groupId);
     set({
       groups: newGroups,
       activeGroupId: groupId,
-      ...(isActive || true ? { openTabs: newGroups.get(groupId)!.openTabs, activeTabId: tabId } : {}),
+      openTabs: newGroups.get(groupId)!.openTabs,
+      activeTabId: tabId,
     });
   },
 
@@ -767,45 +758,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   _saveLayout: () => {
     const { groups, splitRoot, activeGroupId } = get();
-    const serialized: SerializedLayout = {
-      groups: [...groups.entries()].map(([id, g]) => [id, { ...g }]),
-      splitRoot,
-      activeGroupId,
-    };
-    getLayoutStore().then(async (store) => {
-      await store.set(LAYOUT_STORE_KEY, serialized);
-      await store.save();
-    });
+    saveLayout(groups, splitRoot, activeGroupId);
   },
 
   _restoreLayout: async () => {
-    try {
-      const store = await getLayoutStore();
-      const data = await store.get<SerializedLayout>(LAYOUT_STORE_KEY);
-      if (!data || !data.groups || data.groups.length === 0) return;
+    const data = await restoreLayout();
+    if (!data) return;
 
-      const groups = new Map<string, EditorGroup>(data.groups);
-      // Update nextGroupCounter to avoid ID collisions
-      for (const [id] of groups) {
-        const match = id.match(/^group-(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1]);
-          if (num >= nextGroupCounter) nextGroupCounter = num + 1;
-        }
+    const groups = new Map<string, EditorGroup>(data.groups);
+    // Update nextGroupCounter to avoid ID collisions
+    for (const [id] of groups) {
+      const match = id.match(/^group-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num >= nextGroupCounter) nextGroupCounter = num + 1;
       }
-
-      const activeGroupId = groups.has(data.activeGroupId) ? data.activeGroupId : [...groups.keys()][0];
-      const activeGroup = groups.get(activeGroupId)!;
-      set({
-        groups,
-        splitRoot: data.splitRoot,
-        activeGroupId,
-        openTabs: activeGroup.openTabs,
-        activeTabId: activeGroup.activeTabId,
-      });
-    } catch {
-      // Ignore restore errors — start fresh
     }
+
+    const activeGroupId = groups.has(data.activeGroupId) ? data.activeGroupId : [...groups.keys()][0];
+    const activeGroup = groups.get(activeGroupId)!;
+    setActiveGroupId(activeGroupId);
+    set({
+      groups,
+      splitRoot: data.splitRoot,
+      activeGroupId,
+      openTabs: activeGroup.openTabs,
+      activeTabId: activeGroup.activeTabId,
+    });
   },
 
   moveTabToGroup: (fromGroupId, toGroupId, tabId, targetIndex) => {
@@ -845,6 +824,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const newRoot = removeGroupFromTree(get().splitRoot, fromGroupId);
       const fallbackRoot: SplitNode = newRoot ?? { type: "leaf", groupId: toGroupId };
       const newToGroup = newGroups.get(toGroupId)!;
+      setActiveGroupId(toGroupId);
       set({
         groups: newGroups,
         splitRoot: fallbackRoot,
@@ -857,6 +837,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const activeGroupId = toGroupId;
     const activeGroup = newGroups.get(activeGroupId)!;
+    setActiveGroupId(activeGroupId);
     set({
       groups: newGroups,
       activeGroupId,
@@ -866,54 +847,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 }));
 
-// --- Layout persistence ---
-
-const LAYOUT_STORE_KEY = "editorLayout";
-let layoutStoreInstance: Store | null = null;
-
-async function getLayoutStore(): Promise<Store> {
-  if (!layoutStoreInstance) {
-    layoutStoreInstance = await load("editor-layout.json");
-  }
-  return layoutStoreInstance;
-}
-
-interface SerializedLayout {
-  groups: [string, EditorGroup][];
-  splitRoot: SplitNode;
-  activeGroupId: string;
-}
-
 // Auto-save layout on state changes (debounced)
-let saveTimeout: ReturnType<typeof setTimeout> | null = null;
-useEditorStore.subscribe((state, prev) => {
-  if (state.groups !== prev.groups || state.splitRoot !== prev.splitRoot) {
-    if (saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => {
-      useEditorStore.getState()._saveLayout();
-    }, 1000);
-  }
-});
-
-// --- Split tree insertion ---
-
-function insertSplit(node: SplitNode, targetGroupId: string, newGroupId: string, direction: "horizontal" | "vertical"): SplitNode {
-  if (node.type === "leaf") {
-    if (node.groupId === targetGroupId) {
-      return {
-        type: "branch",
-        direction,
-        children: [
-          { type: "leaf", groupId: targetGroupId },
-          { type: "leaf", groupId: newGroupId },
-        ],
-      };
-    }
-    return node;
-  }
-
-  return {
-    ...node,
-    children: node.children.map((c) => insertSplit(c, targetGroupId, newGroupId, direction)),
-  };
-}
+setupAutoSave(
+  useEditorStore.subscribe,
+  () => useEditorStore.getState(),
+);
