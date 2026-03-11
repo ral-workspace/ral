@@ -97,11 +97,10 @@ impl WorkflowEngine {
 async fn execute_step(
     step: &StepDef,
     ctx: &TemplateContext,
-    app: &AppHandle,
     project_path: &str,
 ) -> Result<serde_json::Value, String> {
     if step.tool.is_some() {
-        steps::execute_tool_step(step, ctx, app).await
+        steps::execute_tool_step(step, ctx, project_path).await
     } else if step.agent.is_some() {
         steps::execute_agent_step(step, ctx, project_path).await
     } else {
@@ -254,7 +253,7 @@ pub async fn execute_workflow(
                 }
             }
 
-            result = execute_step(step, &ctx, app, project_path).await;
+            result = execute_step(step, &ctx, project_path).await;
             if result.is_ok() {
                 break;
             }
