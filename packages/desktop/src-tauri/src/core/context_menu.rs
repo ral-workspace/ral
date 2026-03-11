@@ -48,7 +48,7 @@ pub(crate) async fn show_context_menu(
     let menu = build_menu(&app, &items)?;
 
     let tx_clone = tx.clone();
-    app.on_menu_event(move |_app, event| {
+    window.on_menu_event(move |_win, event| {
         let id = event.id().0.clone();
         if let Some(sender) = tx_clone.lock().unwrap().take() {
             let _ = sender.send(id);

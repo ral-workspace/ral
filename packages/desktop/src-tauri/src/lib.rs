@@ -158,7 +158,6 @@ pub fn run() {
             system::fs::create_dir,
             system::fs::rename_path,
             system::fs::delete_path,
-            system::fs::run_command,
             system::search::search_text,
             system::search::search_files,
             system::watcher::start_file_watcher,

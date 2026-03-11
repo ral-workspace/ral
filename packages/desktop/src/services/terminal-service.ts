@@ -58,7 +58,6 @@ class TerminalService {
   private nextGroupId = 1;
   private activeGroupId: number | null = null;
   private listeners = new Set<TerminalChangeListener>();
-  private cachedGroupIds: number[] = [];
   private processNameTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -86,7 +85,6 @@ class TerminalService {
   }
 
   private notify(): void {
-    this.cachedGroupIds = [...this.groups.keys()];
     for (const l of this.listeners) l();
   }
 
@@ -135,7 +133,7 @@ class TerminalService {
 
   /** Returns ordered list of group ids (each group = one tab) */
   getGroupIds(): number[] {
-    return this.cachedGroupIds;
+    return [...this.groups.keys()];
   }
 
   getGroup(groupId: number): TerminalGroup | undefined {
