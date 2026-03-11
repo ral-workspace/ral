@@ -166,9 +166,10 @@ export async function getOrStartLspClient(
   if (!lspConfig) return null;
 
   const { serverKey, config } = lspConfig;
+  const cacheKey = `${serverKey}:${rootPath}`;
 
-  // Return existing server if already running
-  const existing = activeServers.get(serverKey);
+  // Return existing server if already running for this workspace
+  const existing = activeServers.get(cacheKey);
   if (existing) {
     return { client: existing.client, languageId: config.languageId };
   }
@@ -191,7 +192,7 @@ export async function getOrStartLspClient(
 
     client.connect(transport);
 
-    activeServers.set(serverKey, {
+    activeServers.set(cacheKey, {
       serverId,
       client,
       unlisten,
@@ -205,14 +206,14 @@ export async function getOrStartLspClient(
   }
 }
 
-export async function stopLspServer(serverKey: string): Promise<void> {
-  const server = activeServers.get(serverKey);
+export async function stopLspServer(cacheKey: string): Promise<void> {
+  const server = activeServers.get(cacheKey);
   if (!server) return;
 
   server.client.disconnect();
   server.unlisten();
   await invoke("lsp_stop", { id: server.serverId }).catch(() => {});
-  activeServers.delete(serverKey);
+  activeServers.delete(cacheKey);
 }
 
 export async function stopAllLspServers(): Promise<void> {
@@ -223,11 +224,13 @@ export async function stopAllLspServers(): Promise<void> {
 
 export function getActiveLspClient(
   filePath: string,
+  rootPath: string,
 ): { client: LSPClient; languageId: string } | null {
   const lspConfig = getLspConfig(filePath);
   if (!lspConfig) return null;
 
-  const server = activeServers.get(lspConfig.serverKey);
+  const cacheKey = `${lspConfig.serverKey}:${rootPath}`;
+  const server = activeServers.get(cacheKey);
   if (!server) return null;
 
   return {

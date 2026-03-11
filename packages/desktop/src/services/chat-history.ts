@@ -18,13 +18,23 @@ export interface SessionSummary {
   agentSessionId?: string;
 }
 
-function encodeProjectPath(path: string): string {
-  return path.replace(/\//g, "-");
+async function hashString(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function encodeProjectPath(path: string): Promise<string> {
+  const hash = await hashString(path);
+  const name = path.split("/").filter(Boolean).pop() ?? "project";
+  return `${name}-${hash.slice(0, 16)}`;
 }
 
 async function getSessionDir(projectPath: string): Promise<string> {
   const home = await homeDir();
-  const encoded = encodeProjectPath(projectPath);
+  const encoded = await encodeProjectPath(projectPath);
   return await join(home, RAL_DIR, PROJECTS_DIR, encoded);
 }
 

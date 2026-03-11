@@ -230,7 +230,7 @@ class TerminalService {
         // Group is empty, remove it
         this.groups.delete(groupId);
         if (this.activeGroupId === groupId) {
-          const gids = this.getGroupIds();
+          const gids = [...this.groups.keys()];
           this.activeGroupId = gids.length > 0 ? gids[gids.length - 1] : null;
         }
       } else if (group.activeInstanceId === instanceId) {
@@ -263,7 +263,7 @@ class TerminalService {
 
     this.groups.delete(groupId);
     if (this.activeGroupId === groupId) {
-      const gids = this.getGroupIds();
+      const gids = [...this.groups.keys()];
       this.activeGroupId = gids.length > 0 ? gids[gids.length - 1] : null;
     }
     this.notify();
