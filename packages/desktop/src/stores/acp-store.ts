@@ -248,7 +248,16 @@ export const useACPStore = create<ACPState>((set, get) => ({
         // Resume session via ACP load_session
         if (get().connected) {
           await invoke("acp_stop_agent", { windowLabel });
-          await new Promise((r) => setTimeout(r, 100));
+          // Wait for acp-disconnected event to confirm agent stopped
+          if (get().connected) {
+            await new Promise<void>((resolve) => {
+              const unsub = useACPStore.subscribe((state) => {
+                if (!state.connected) { unsub(); resolve(); }
+              });
+              // Safety timeout to avoid hanging forever
+              setTimeout(() => { unsub(); resolve(); }, 5000);
+            });
+          }
         }
 
         set({
@@ -298,28 +307,36 @@ export const useACPStore = create<ACPState>((set, get) => ({
   },
 
   _init: () => {
-    if (initialized) return;
-    initialized = true;
-
-    // Prewarm: start agent immediately (use projectPath or home dir)
-    const { projectPath } = useWorkspaceStore.getState();
-    if (projectPath) {
-      get().startAgent(projectPath);
-    } else {
-      homeDir().then((home) => get().startAgent(home));
+    // Clean up previous listeners (safe for HMR)
+    for (const fn of unlisteners) {
+      fn();
     }
+    unlisteners = [];
 
-    // Re-start agent when project path changes
-    useWorkspaceStore.subscribe((state, prev) => {
-      if (state.projectPath && state.projectPath !== prev.projectPath) {
-        const { connected } = get();
-        if (connected) {
-          get().stopAgent().then(() => get().startAgent(state.projectPath!));
-        } else {
-          get().startAgent(state.projectPath!);
-        }
+    if (!initialized) {
+      initialized = true;
+
+      // Prewarm: start agent immediately (use projectPath or home dir)
+      const { projectPath } = useWorkspaceStore.getState();
+      if (projectPath) {
+        get().startAgent(projectPath);
+      } else {
+        homeDir().then((home) => get().startAgent(home));
       }
-    });
+
+      // Re-start agent when project path changes
+      const unsubWorkspace = useWorkspaceStore.subscribe((state, prev) => {
+        if (state.projectPath && state.projectPath !== prev.projectPath) {
+          const { connected } = get();
+          if (connected) {
+            get().stopAgent().then(() => get().startAgent(state.projectPath!));
+          } else {
+            get().startAgent(state.projectPath!);
+          }
+        }
+      });
+      unlisteners.push(unsubWorkspace);
+    }
 
     // Listen for ACP events
     currentWindow.listen("acp-connected", (event) => {

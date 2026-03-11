@@ -7,7 +7,7 @@ interface WorkspaceState {
   projectPath: string | null;
   recentProjects: string[];
   selectFolder: (path: string) => void;
-  _loadRecentProjects: (restoreLastProject?: boolean) => void;
+  _loadRecentProjects: (restoreLastProject?: boolean) => Promise<void>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -37,22 +37,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     invoke("update_recent_menu", { paths: updated, autoSave: useSettingsStore.getState().settings["files.autoSave"] }).catch(() => {});
   },
 
-  _loadRecentProjects: (restoreLastProject = false) => {
-    load("settings.json").then(async (store) => {
-      const saved = await store.get<string[]>("recentProjects");
-      if (saved) {
-        set({ recentProjects: saved });
-        // Update native Open Recent menu
-        invoke("update_recent_menu", { paths: saved, autoSave: useSettingsStore.getState().settings["files.autoSave"] }).catch(() => {});
-      }
+  _loadRecentProjects: async (restoreLastProject = false) => {
+    const store = await load("settings.json");
+    const saved = await store.get<string[]>("recentProjects");
+    if (saved) {
+      set({ recentProjects: saved });
+      // Update native Open Recent menu
+      invoke("update_recent_menu", { paths: saved, autoSave: useSettingsStore.getState().settings["files.autoSave"] }).catch(() => {});
+    }
 
-      // Restore last opened project (main window only)
-      if (restoreLastProject) {
-        const lastPath = await store.get<string>("lastProjectPath");
-        if (lastPath && !get().projectPath) {
-          set({ projectPath: lastPath });
-        }
+    // Restore last opened project (main window only)
+    if (restoreLastProject) {
+      const lastPath = await store.get<string>("lastProjectPath");
+      if (lastPath && !get().projectPath) {
+        set({ projectPath: lastPath });
       }
-    });
+    }
   },
 }));

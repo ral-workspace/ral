@@ -142,22 +142,35 @@ export const useJobStore = create<JobState>((set, get) => ({
 
 // ── Event listeners (registered once at module load) ──
 
-function setupListeners() {
+type UnlistenFn = () => void;
+let activeUnlistens: UnlistenFn[] = [];
+
+async function setupListeners() {
+  // Clean up previous listeners (safe for HMR)
+  for (const unlisten of activeUnlistens) {
+    unlisten();
+  }
+  activeUnlistens = [];
+
   const { setState: set } = useJobStore;
 
-  listen<SchedulerJobStartedEvent>(EVENTS.SCHEDULER_JOB_STARTED, (event) => {
-    set((s) => ({
-      runningJobIds: addToSet(s.runningJobIds, event.payload.job_id),
-    }));
-  });
+  activeUnlistens.push(
+    await listen<SchedulerJobStartedEvent>(EVENTS.SCHEDULER_JOB_STARTED, (event) => {
+      set((s) => ({
+        runningJobIds: addToSet(s.runningJobIds, event.payload.job_id),
+      }));
+    }),
+  );
 
-  listen<SchedulerJobCompletedEvent>(EVENTS.SCHEDULER_JOB_COMPLETED, (event) => {
-    const run = event.payload;
-    set((s) => ({
-      runningJobIds: removeFromSet(s.runningJobIds, run.job_id),
-      history: prependCapped(s.history, run, 50),
-    }));
-  });
+  activeUnlistens.push(
+    await listen<SchedulerJobCompletedEvent>(EVENTS.SCHEDULER_JOB_COMPLETED, (event) => {
+      const run = event.payload;
+      set((s) => ({
+        runningJobIds: removeFromSet(s.runningJobIds, run.job_id),
+        history: prependCapped(s.history, run, 50),
+      }));
+    }),
+  );
 }
 
 setupListeners();
