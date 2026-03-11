@@ -58,6 +58,7 @@ class TerminalService {
   private nextGroupId = 1;
   private activeGroupId: number | null = null;
   private listeners = new Set<TerminalChangeListener>();
+  private snapshotGroupIds: number[] = [];
   private processNameTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -85,6 +86,7 @@ class TerminalService {
   }
 
   private notify(): void {
+    this.snapshotGroupIds = [...this.groups.keys()];
     for (const l of this.listeners) l();
   }
 
@@ -131,9 +133,9 @@ class TerminalService {
     if (changed) this.notify();
   }
 
-  /** Returns ordered list of group ids (each group = one tab) */
+  /** Returns a stable snapshot for useSyncExternalStore (same ref until notify) */
   getGroupIds(): number[] {
-    return [...this.groups.keys()];
+    return this.snapshotGroupIds;
   }
 
   getGroup(groupId: number): TerminalGroup | undefined {
