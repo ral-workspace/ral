@@ -17,4 +17,4 @@ git push origin main --tags
 
 echo ""
 echo "Release v$VERSION triggered. Check GitHub Actions:"
-echo "  https://github.com/ral-workspace/anvil/actions"
+echo "  https://github.com/ral-workspace/ral/actions"
