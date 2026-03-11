@@ -10,13 +10,18 @@ pub fn create_new_window(app: &AppHandle) -> Result<WebviewWindow, String> {
             .map(|d| d.as_millis())
             .unwrap_or(0)
     );
-    WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App(Default::default()))
+    let builder = WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App(Default::default()))
         .title("")
         .inner_size(1200.0, 800.0)
         .visible(false)
-        .decorations(true)
+        .decorations(true);
+
+    #[cfg(target_os = "macos")]
+    let builder = builder
         .hidden_title(true)
-        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .title_bar_style(tauri::TitleBarStyle::Overlay);
+
+    builder
         .build()
         .map_err(|e| format!("Failed to create new window: {}", e))
 }
