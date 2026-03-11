@@ -33,15 +33,6 @@ impl McpState {
         }
     }
 
-    /// Look up a server URL by name
-    pub(crate) fn get_server_url(&self, name: &str) -> Option<String> {
-        self.server_registry.get(name).cloned()
-    }
-
-    /// Get a clone of the HTTP client
-    pub(crate) fn http_client(&self) -> reqwest::Client {
-        self.http.clone()
-    }
 }
 
 #[derive(Serialize, Clone)]

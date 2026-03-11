@@ -6,6 +6,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 struct WatcherEntry {
+    #[allow(dead_code)] // Held for ownership — dropping stops the watcher
     debouncer: notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>,
     ref_count: usize,
 }

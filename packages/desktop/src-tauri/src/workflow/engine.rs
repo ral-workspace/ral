@@ -89,6 +89,7 @@ impl WorkflowEngine {
         }
     }
 
+    #[allow(dead_code)]
     pub fn stop_all_schedulers(&mut self) {
         for (_, (tx, _)) in self.scheduler_cancels.drain() {
             let _ = tx.send(());

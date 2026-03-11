@@ -12,7 +12,10 @@ use tauri_plugin_cli::CliExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(feature = "e2e")]
     let mut builder = tauri::Builder::default();
+    #[cfg(not(feature = "e2e"))]
+    let builder = tauri::Builder::default();
 
     #[cfg(feature = "e2e")]
     {
