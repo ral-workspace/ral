@@ -5,8 +5,7 @@ trigger:
 permissions: []
 steps:
   - id: step1
-    tool: echo
-    params:
-      message: "Needs approval"
+    agent: responder
+    prompt: "Reply with exactly: Needs approval"
     approve: true
 output: []

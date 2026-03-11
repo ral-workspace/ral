@@ -204,72 +204,89 @@ function isCurrentProject(eventProjectPath?: string): boolean {
   return current === eventProjectPath;
 }
 
-function setupListeners() {
+type UnlistenFn = () => void;
+let activeUnlistens: UnlistenFn[] = [];
+
+async function setupListeners() {
+  // Clean up previous listeners (safe for HMR)
+  for (const unlisten of activeUnlistens) {
+    unlisten();
+  }
+  activeUnlistens = [];
+
   const { set, get } = { set: useWorkflowStore.setState, get: useWorkflowStore.getState };
 
-  listen<WorkflowRunStartedEvent>(
-    EVENTS.WORKFLOW_RUN_STARTED,
-    (event) => {
-      if (!isCurrentProject(event.payload.project_path)) return;
-      set((s) => ({
-        runningWorkflows: addToSet(s.runningWorkflows, event.payload.workflow_id),
-      }));
-    },
+  activeUnlistens.push(
+    await listen<WorkflowRunStartedEvent>(
+      EVENTS.WORKFLOW_RUN_STARTED,
+      (event) => {
+        if (!isCurrentProject(event.payload.project_path)) return;
+        set((s) => ({
+          runningWorkflows: addToSet(s.runningWorkflows, event.payload.workflow_id),
+        }));
+      },
+    ),
   );
 
-  listen<WorkflowRunCompletedEvent>(
-    EVENTS.WORKFLOW_RUN_COMPLETED,
-    (event) => {
-      if (!isCurrentProject(event.payload.project_path)) return;
-      set((s) => ({
-        runningWorkflows: removeFromSet(s.runningWorkflows, event.payload.workflow_id),
-        pendingApprovals: s.pendingApprovals.filter(
-          (a) => a.runId !== event.payload.run_id,
-        ),
-      }));
-      const projectPath = useWorkspaceStore.getState().projectPath;
-      if (projectPath) {
-        get().fetchRuns(projectPath);
-        get().fetchWorkflows(projectPath);
-      }
-    },
+  activeUnlistens.push(
+    await listen<WorkflowRunCompletedEvent>(
+      EVENTS.WORKFLOW_RUN_COMPLETED,
+      (event) => {
+        if (!isCurrentProject(event.payload.project_path)) return;
+        set((s) => ({
+          runningWorkflows: removeFromSet(s.runningWorkflows, event.payload.workflow_id),
+          pendingApprovals: s.pendingApprovals.filter(
+            (a) => a.runId !== event.payload.run_id,
+          ),
+        }));
+        const projectPath = useWorkspaceStore.getState().projectPath;
+        if (projectPath) {
+          get().fetchRuns(projectPath);
+          get().fetchWorkflows(projectPath);
+        }
+      },
+    ),
   );
 
-  listen<WorkflowApprovalPendingEvent>(EVENTS.WORKFLOW_APPROVAL_PENDING, (event) => {
-    if (!isCurrentProject(event.payload.project_path)) return;
-    const { run_id, workflow_id, workflow_name, step_id, step_tool, step_agent } =
-      event.payload;
-    set((s) => {
-      const exists = s.pendingApprovals.some(
-        (a) => a.runId === run_id && a.stepId === step_id,
-      );
-      if (exists) return s;
-      return {
-        pendingApprovals: [
-          ...s.pendingApprovals,
-          {
-            runId: run_id,
-            workflowId: workflow_id,
-            workflowName: workflow_name,
-            stepId: step_id,
-            stepTool: step_tool,
-            stepAgent: step_agent,
-          },
-        ],
-      };
-    });
-  });
-
-  listen<WorkflowApprovalResolvedEvent>(
-    EVENTS.WORKFLOW_APPROVAL_RESOLVED,
-    (event) => {
+  activeUnlistens.push(
+    await listen<WorkflowApprovalPendingEvent>(EVENTS.WORKFLOW_APPROVAL_PENDING, (event) => {
       if (!isCurrentProject(event.payload.project_path)) return;
-      set((s) => ({
-        pendingApprovals: s.pendingApprovals.filter(
-          (a) => a.runId !== event.payload.run_id || a.stepId !== event.payload.step_id,
-        ),
-      }));
-    },
+      const { run_id, workflow_id, workflow_name, step_id, step_tool, step_agent } =
+        event.payload;
+      set((s) => {
+        const exists = s.pendingApprovals.some(
+          (a) => a.runId === run_id && a.stepId === step_id,
+        );
+        if (exists) return s;
+        return {
+          pendingApprovals: [
+            ...s.pendingApprovals,
+            {
+              runId: run_id,
+              workflowId: workflow_id,
+              workflowName: workflow_name,
+              stepId: step_id,
+              stepTool: step_tool,
+              stepAgent: step_agent,
+            },
+          ],
+        };
+      });
+    }),
+  );
+
+  activeUnlistens.push(
+    await listen<WorkflowApprovalResolvedEvent>(
+      EVENTS.WORKFLOW_APPROVAL_RESOLVED,
+      (event) => {
+        if (!isCurrentProject(event.payload.project_path)) return;
+        set((s) => ({
+          pendingApprovals: s.pendingApprovals.filter(
+            (a) => a.runId !== event.payload.run_id || a.stepId !== event.payload.step_id,
+          ),
+        }));
+      },
+    ),
   );
 }
 

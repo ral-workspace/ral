@@ -5,8 +5,7 @@ trigger:
 permissions: []
 steps:
   - id: step1
-    tool: echo
-    params:
-      message: "Hello from Project B"
+    agent: responder
+    prompt: "Reply with exactly: Hello from Project B"
     approve: false
 output: []

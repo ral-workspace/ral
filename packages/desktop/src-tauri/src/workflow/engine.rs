@@ -28,10 +28,13 @@ impl WorkflowEngine {
         }
     }
 
-    pub fn register_run(&mut self, run_id: &str) -> broadcast::Receiver<()> {
+    pub fn register_run(
+        &mut self,
+        run_id: &str,
+    ) -> (broadcast::Sender<()>, broadcast::Receiver<()>) {
         let (tx, rx) = broadcast::channel(1);
-        self.running.insert(run_id.to_string(), tx);
-        rx
+        self.running.insert(run_id.to_string(), tx.clone());
+        (tx, rx)
     }
 
     pub fn cancel(&self, run_id: &str) -> Result<(), String> {
@@ -98,11 +101,12 @@ async fn execute_step(
     step: &StepDef,
     ctx: &TemplateContext,
     project_path: &str,
+    cancel: &broadcast::Sender<()>,
 ) -> Result<serde_json::Value, String> {
     if step.tool.is_some() {
-        steps::execute_tool_step(step, ctx, project_path).await
+        steps::execute_tool_step(step, ctx, project_path, cancel).await
     } else if step.agent.is_some() {
-        steps::execute_agent_step(step, ctx, project_path).await
+        steps::execute_agent_step(step, ctx, project_path, cancel).await
     } else {
         Err(format!("Step '{}' has neither tool nor agent", step.id))
     }
@@ -121,7 +125,7 @@ pub async fn execute_workflow(
     let now = chrono::Utc::now().to_rfc3339();
 
     // Register cancel channel
-    let mut cancel_rx = {
+    let (cancel_tx, mut cancel_rx) = {
         let mut eng = engine.lock().map_err(|e| e.to_string())?;
         eng.register_run(run_id)
     };
@@ -253,7 +257,7 @@ pub async fn execute_workflow(
                 }
             }
 
-            result = execute_step(step, &ctx, project_path).await;
+            result = execute_step(step, &ctx, project_path, &cancel_tx).await;
             if result.is_ok() {
                 break;
             }
