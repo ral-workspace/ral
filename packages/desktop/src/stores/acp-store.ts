@@ -304,6 +304,16 @@ export const useACPStore = create<ACPState>((set, get) => ({
       messages: [],
       isViewingHistory: false,
     });
+
+    // Re-start agent if not connected
+    if (!get().connected) {
+      const projectPath = useWorkspaceStore.getState().projectPath;
+      if (projectPath) {
+        get().startAgent(projectPath);
+      } else {
+        homeDir().then((home) => get().startAgent(home));
+      }
+    }
   },
 
   _init: () => {

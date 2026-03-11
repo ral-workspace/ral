@@ -1,7 +1,6 @@
 import { cn } from "@ral/ui";
 import { useCallback } from "react";
 import { IconArrowDown } from "@tabler/icons-react";
-import { homeDir } from "@tauri-apps/api/path";
 import { useACPStore } from "../../stores/acp-store";
 import { useWorkspaceStore } from "../../stores";
 import { useScrollToBottom } from "../../hooks/use-scroll-to-bottom";
@@ -15,7 +14,6 @@ interface AiChatProps {
 
 export function AiChat({ className }: AiChatProps) {
   const {
-    connected,
     messages,
     isPrompting,
     isAuthenticating,
@@ -23,7 +21,6 @@ export function AiChat({ className }: AiChatProps) {
     sessions,
     sessionId,
     configOptions,
-    startAgent,
     sendPrompt,
     cancelPrompt,
     setConfigOption,
@@ -34,18 +31,6 @@ export function AiChat({ className }: AiChatProps) {
 
   const projectPath = useWorkspaceStore((s) => s.projectPath);
   const { containerRef, endRef, isAtBottom, scrollToBottom } = useScrollToBottom();
-
-  const handleNewChat = useCallback(() => {
-    newChat();
-    if (!connected) {
-      const cwd = projectPath ?? undefined;
-      if (cwd) {
-        startAgent(cwd);
-      } else {
-        homeDir().then((home) => startAgent(home));
-      }
-    }
-  }, [newChat, connected, startAgent, projectPath]);
 
   const handleViewSession = useCallback(
     (sid: string) => {
@@ -70,7 +55,7 @@ export function AiChat({ className }: AiChatProps) {
         currentLabel={currentLabel}
         sessionId={sessionId}
         sessions={sessions}
-        onNewChat={handleNewChat}
+        onNewChat={newChat}
         onViewSession={handleViewSession}
         onLoadSessions={handleLoadSessions}
       />
