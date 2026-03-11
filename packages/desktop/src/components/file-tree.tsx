@@ -9,6 +9,7 @@ import type { NativeMenuItem } from "../lib/native-context-menu";
 import { useNativeContextMenu } from "../lib/use-native-context-menu";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useLayoutStore } from "../stores/layout-store";
+import { createFile, createDir, renamePath, deletePath } from "../services/file-operations";
 
 interface DirEntry {
   name: string;
@@ -171,7 +172,7 @@ export function FileTree({
 
     const destination = `${targetFolder}/${basename(sourcePath)}`;
     try {
-      await invoke("rename_path", { from: sourcePath, to: destination });
+      await renamePath(sourcePath, destination);
       reload();
     } catch (err) {
       console.error("Failed to move file:", err);
@@ -261,8 +262,8 @@ function InlineInput({
     if (!name || name.includes("/") || name.includes("\\")) { onDone?.(); return; }
     const fullPath = `${parentPath}/${name}`;
     try {
-      if (type === "folder") { await invoke("create_dir", { path: fullPath }); }
-      else { await invoke("create_file", { path: fullPath }); }
+      if (type === "folder") { await createDir(fullPath); }
+      else { await createFile(fullPath); }
       onDone?.();
       if (type === "file") { onFileOpen?.(fullPath, true); }
     } catch (err) { console.error("Failed to create:", err); onDone?.(); }
@@ -347,7 +348,7 @@ function RenameInput({
     const parentDir = entry.path.slice(0, entry.path.lastIndexOf("/"));
     const newPath = `${parentDir}/${newName}`;
     try {
-      await invoke("rename_path", { from: entry.path, to: newPath });
+      await renamePath(entry.path, newPath);
       onDone(newPath);
     } catch (err) {
       console.error("Failed to rename:", err);
@@ -520,7 +521,7 @@ function TreeItem({
         setRenaming(true);
         break;
       case "delete":
-        invoke("delete_path", { path: entry.path })
+        deletePath(entry.path)
           .then(() => {
             onTreeReload?.();
             reloadChildren();

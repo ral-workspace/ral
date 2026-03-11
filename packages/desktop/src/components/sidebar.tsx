@@ -55,7 +55,11 @@ export function Sidebar({ className }: SidebarProps) {
   const openPreview = useEditorStore((s) => s.openPreview);
   const openDatabase = useEditorStore((s) => s.openDatabase);
   const openMarkdown = useEditorStore((s) => s.openMarkdown);
+  const openWorkflows = useEditorStore((s) => s.openWorkflows);
   const activeTabId = useEditorStore((s) => s.activeTabId);
+  const isWorkflowsActive = useEditorStore(
+    (s) => s.openTabs.some((t) => t.id === WORKFLOWS_TAB_ID) && s.activeTabId === WORKFLOWS_TAB_ID,
+  );
   const activeFilePath = tabIdToFilePath(activeTabId);
 
   const handleFileOpen = useCallback(
@@ -103,16 +107,14 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Activity Bar - horizontal icons */}
       <div className="flex h-10 items-center justify-center gap-0.5 px-2">
         {activityItems.map((item) => {
-          const isWorkflowsOpen = useEditorStore.getState().openTabs.some((t) => t.id === WORKFLOWS_TAB_ID)
-            && useEditorStore.getState().activeTabId === WORKFLOWS_TAB_ID;
-          const isActive = item.action === "openTab" ? isWorkflowsOpen : activeView === item.id;
+          const isActive = item.action === "openTab" ? isWorkflowsActive : activeView === item.id;
           return (
             <Tooltip key={item.id}>
               <TooltipTrigger asChild>
                 <button
                   onClick={() => {
                     if (item.action === "openTab") {
-                      useEditorStore.getState().openWorkflows();
+                      openWorkflows();
                     } else {
                       setSidebarView(item.id);
                     }
