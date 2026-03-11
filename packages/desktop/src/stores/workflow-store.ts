@@ -61,6 +61,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   activeSchedulerPath: null,
 
   _init: async (projectPath: string) => {
+    await setupListeners();
     await get().fetchWorkflows(projectPath);
     await get().fetchRuns(projectPath);
 
@@ -290,4 +291,11 @@ async function setupListeners() {
   );
 }
 
-setupListeners();
+// Listeners are set up lazily via _init() to avoid module-level side effects.
+// HMR: clean up listeners on module reload.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    for (const unlisten of activeUnlistens) unlisten();
+    activeUnlistens = [];
+  });
+}

@@ -18,12 +18,18 @@ pub fn start_workflow_scheduler(
 ) {
     let (cancel_tx, mut cancel_rx) = broadcast::channel::<()>(1);
 
-    // Store cancel handle (stop existing scheduler for this project first)
-    {
+    // Register cancel handle; if a scheduler is already running for this project,
+    // just increment the ref count and skip spawning a new one.
+    let should_spawn = {
         if let Ok(mut eng) = engine.lock() {
-            eng.stop_scheduler(&project_path);
-            eng.set_scheduler_cancel(project_path.clone(), cancel_tx);
+            eng.set_scheduler_cancel(project_path.clone(), cancel_tx)
+        } else {
+            return; // lock poisoned
         }
+    };
+
+    if !should_spawn {
+        return;
     }
 
     tauri::async_runtime::spawn(async move {

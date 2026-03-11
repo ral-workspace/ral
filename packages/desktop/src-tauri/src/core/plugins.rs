@@ -84,6 +84,21 @@ fn read_claude_settings() -> Result<ClaudeSettings, String> {
     serde_json::from_str(&content).map_err(|e| format!("parse settings: {}", e))
 }
 
+/// Read Claude settings.json and return as a JSON string.
+#[tauri::command]
+pub(crate) fn get_claude_settings() -> Result<String, String> {
+    let content =
+        std::fs::read_to_string(settings_path()).map_err(|e| format!("read settings: {}", e))?;
+    Ok(content)
+}
+
+/// Run a claude CLI subcommand with proper PATH resolution.
+#[tauri::command]
+pub(crate) async fn run_claude_cli(args: Vec<String>) -> Result<String, String> {
+    let str_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    run_claude(&str_args).await
+}
+
 /// Run on app startup (in a background task). Ensures all built-in plugins
 /// from the ral-plugins marketplace are installed and up to date.
 pub async fn ensure_builtin_plugins(app: tauri::AppHandle) {

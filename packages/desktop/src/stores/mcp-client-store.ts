@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { load } from "@tauri-apps/plugin-store";
 
 interface McpToolInfo {
   name: string;
@@ -19,9 +20,20 @@ export interface McpServerConfig {
   enabled: boolean;
 }
 
-const DEFAULT_MCP_SERVERS: McpServerConfig[] = [
+const FALLBACK_MCP_SERVERS: McpServerConfig[] = [
   { name: "Excalidraw", url: "https://mcp.excalidraw.com/mcp", enabled: true },
 ];
+
+async function loadMcpServers(): Promise<McpServerConfig[]> {
+  try {
+    const store = await load("settings.json");
+    const saved = await store.get<McpServerConfig[]>("mcpServers");
+    if (saved && saved.length > 0) return saved;
+  } catch {
+    // fall through to defaults
+  }
+  return FALLBACK_MCP_SERVERS;
+}
 
 interface McpClientState {
   /** Tool name → UI resource info mapping */
@@ -120,7 +132,8 @@ export const useMcpClientStore = create<McpClientState & McpClientActions>((set,
   },
 
   connectFromConfig: async () => {
-    for (const server of DEFAULT_MCP_SERVERS) {
+    const servers = await loadMcpServers();
+    for (const server of servers) {
       if (server.enabled) {
         get().connect(server.name, server.url);
       }

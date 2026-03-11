@@ -5,8 +5,13 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
+struct WatcherEntry {
+    debouncer: notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>,
+    ref_count: usize,
+}
+
 pub(crate) struct FileWatcherState {
-    watchers: HashMap<String, notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>>,
+    watchers: HashMap<String, WatcherEntry>,
 }
 
 impl FileWatcherState {
@@ -25,8 +30,9 @@ pub(crate) fn start_file_watcher(
 ) -> Result<(), String> {
     let mut watcher_state = state.lock().map_err(|e| e.to_string())?;
 
-    // Already watching this path
-    if watcher_state.watchers.contains_key(&path) {
+    // Increment ref count if already watching this path
+    if let Some(entry) = watcher_state.watchers.get_mut(&path) {
+        entry.ref_count += 1;
         return Ok(());
     }
 
@@ -48,7 +54,7 @@ pub(crate) fn start_file_watcher(
         .watch(Path::new(&path), notify::RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
 
-    watcher_state.watchers.insert(path, debouncer);
+    watcher_state.watchers.insert(path, WatcherEntry { debouncer, ref_count: 1 });
     Ok(())
 }
 
@@ -58,6 +64,11 @@ pub(crate) fn stop_file_watcher(
     path: String,
 ) -> Result<(), String> {
     let mut watcher_state = state.lock().map_err(|e| e.to_string())?;
-    watcher_state.watchers.remove(&path);
+    if let Some(entry) = watcher_state.watchers.get_mut(&path) {
+        entry.ref_count -= 1;
+        if entry.ref_count == 0 {
+            watcher_state.watchers.remove(&path);
+        }
+    }
     Ok(())
 }

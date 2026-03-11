@@ -15,8 +15,8 @@ pub struct WorkflowEngine {
     running: HashMap<String, broadcast::Sender<()>>,
     /// Pending approval responses: "run_id:step_id" → oneshot sender
     pub(crate) pending_approvals: HashMap<String, oneshot::Sender<bool>>,
-    /// Scheduler cancel handles: project_path → sender
-    scheduler_cancels: HashMap<String, broadcast::Sender<()>>,
+    /// Scheduler cancel handles: project_path → (sender, ref_count)
+    scheduler_cancels: HashMap<String, (broadcast::Sender<()>, usize)>,
 }
 
 impl WorkflowEngine {
@@ -80,19 +80,30 @@ impl WorkflowEngine {
     }
 
     pub fn stop_scheduler(&mut self, project_path: &str) {
-        if let Some(tx) = self.scheduler_cancels.remove(project_path) {
-            let _ = tx.send(());
+        if let Some((tx, ref_count)) = self.scheduler_cancels.get_mut(project_path) {
+            *ref_count = ref_count.saturating_sub(1);
+            if *ref_count == 0 {
+                let _ = tx.send(());
+                self.scheduler_cancels.remove(project_path);
+            }
         }
     }
 
     pub fn stop_all_schedulers(&mut self) {
-        for (_, tx) in self.scheduler_cancels.drain() {
+        for (_, (tx, _)) in self.scheduler_cancels.drain() {
             let _ = tx.send(());
         }
     }
 
-    pub fn set_scheduler_cancel(&mut self, project_path: String, tx: broadcast::Sender<()>) {
-        self.scheduler_cancels.insert(project_path, tx);
+    /// Returns true if a new scheduler was started, false if ref count was incremented.
+    pub fn set_scheduler_cancel(&mut self, project_path: String, tx: broadcast::Sender<()>) -> bool {
+        if let Some((_, ref_count)) = self.scheduler_cancels.get_mut(&project_path) {
+            *ref_count += 1;
+            false
+        } else {
+            self.scheduler_cancels.insert(project_path, (tx, 1));
+            true
+        }
     }
 }
 

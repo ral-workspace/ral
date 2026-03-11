@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { homeDir } from "@tauri-apps/api/path";
 import { toast } from "@ral/ui";
 
 const OFFICIAL_MARKETPLACE = "claude-plugins-official";
@@ -37,9 +36,7 @@ interface PluginState {
 
 async function readClaudeSettings(): Promise<Record<string, unknown>> {
   try {
-    const home = await homeDir();
-    const path = `${home}/.claude/settings.json`;
-    const content = await invoke<string>("read_file", { path });
+    const content = await invoke<string>("get_claude_settings");
     return JSON.parse(content);
   } catch {
     return {};
@@ -47,12 +44,7 @@ async function readClaudeSettings(): Promise<Record<string, unknown>> {
 }
 
 async function runClaudeCommand(args: string[]): Promise<void> {
-  const home = await homeDir();
-  const claudePath = `${home}/.claude/local/claude`;
-  await invoke<string>("run_command", {
-    command: claudePath,
-    args,
-  });
+  await invoke<string>("run_claude_cli", { args });
 }
 
 async function ensureMarketplaceAdded(name: string, repo: string): Promise<void> {

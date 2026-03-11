@@ -212,6 +212,8 @@ pub fn run() {
             workflow::workflow_respond_approval,
             core::cli::install_cli,
             core::cli::uninstall_cli,
+            core::plugins::get_claude_settings,
+            core::plugins::run_claude_cli,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

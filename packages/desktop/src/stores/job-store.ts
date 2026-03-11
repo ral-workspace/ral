@@ -45,6 +45,7 @@ export const useJobStore = create<JobState>((set, get) => ({
   lastAction: null,
 
   _init: async () => {
+    await setupListeners();
     await get().fetchJobs();
     await get().fetchHistory();
   },
@@ -173,4 +174,11 @@ async function setupListeners() {
   );
 }
 
-setupListeners();
+// Listeners are set up lazily via _init() to avoid module-level side effects.
+// HMR: clean up listeners on module reload.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    for (const unlisten of activeUnlistens) unlisten();
+    activeUnlistens = [];
+  });
+}
