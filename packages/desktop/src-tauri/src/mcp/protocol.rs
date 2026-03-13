@@ -54,21 +54,34 @@ pub(crate) async fn jsonrpc_request(
 
     // Parse JSON from response body — handle both JSON and SSE formats
     let json: Value = if content_type.contains("text/event-stream") {
-        // SSE format: extract JSON from "data: {...}" lines
+        // SSE format: find the "data: {...}" line whose `id` matches the request
         let mut result_json: Option<Value> = None;
         for line in body.lines() {
             if let Some(data) = line.strip_prefix("data: ") {
                 if let Ok(parsed) = serde_json::from_str::<Value>(data) {
-                    result_json = Some(parsed);
-                    break;
+                    // Only accept frames with matching id
+                    if parsed.get("id").and_then(|v| v.as_u64()) == Some(id) {
+                        result_json = Some(parsed);
+                        break;
+                    }
                 }
             }
         }
-        result_json.ok_or_else(|| format!("No JSON data found in SSE response for '{}'", method))?
+        result_json.ok_or_else(|| format!("No matching JSON-RPC response (id={}) in SSE for '{}'", id, method))?
     } else {
         serde_json::from_str(&body)
             .map_err(|e| format!("MCP response parse failed for '{}': {} (body: {})", method, e, &body[..body.len().min(200)]))?
     };
+
+    // Verify response id matches request id
+    if let Some(response_id) = json.get("id") {
+        if response_id.as_u64() != Some(id) {
+            return Err(format!(
+                "MCP response id mismatch for '{}': expected {}, got {}",
+                method, id, response_id
+            ));
+        }
+    }
 
     if let Some(error) = json.get("error") {
         return Err(format!("MCP error from '{}': {}", method, error));

@@ -16,12 +16,25 @@ struct SessionInfo {
     next_id: u64,
 }
 
-/// Managed state for all MCP server connections
+/// Managed state for all MCP server connections.
+/// Sessions and registry are scoped by window_label to isolate
+/// multi-window/multi-project connections to the same MCP server.
 pub(crate) struct McpState {
+    /// Key: "window_label:url" — per-window session isolation
     sessions: HashMap<String, SessionInfo>,
-    /// Server name → URL registry (populated by mcp_connect)
+    /// Key: "window_label:name" → URL registry
     server_registry: HashMap<String, String>,
     http: reqwest::Client,
+}
+
+/// Build a session key scoped to a specific window
+fn session_key(window_label: &str, url: &str) -> String {
+    format!("{}:{}", window_label, url)
+}
+
+/// Build a registry key scoped to a specific window
+fn registry_key(window_label: &str, name: &str) -> String {
+    format!("{}:{}", window_label, name)
 }
 
 impl McpState {
@@ -47,6 +60,7 @@ pub(crate) struct McpToolInfo {
 #[tauri::command]
 pub(crate) async fn mcp_connect(
     state: State<'_, Mutex<McpState>>,
+    window_label: String,
     name: String,
     url: String,
 ) -> Result<Vec<McpToolInfo>, String> {
@@ -134,17 +148,17 @@ pub(crate) async fn mcp_connect(
         t2.elapsed().as_millis()
     );
 
-    // Store session and register server name
+    // Store session and register server name (scoped by window)
     {
         let mut s = state.lock().map_err(|e| e.to_string())?;
         s.sessions.insert(
-            url.clone(),
+            session_key(&window_label, &url),
             SessionInfo {
                 session_id,
                 next_id: 3, // Already used 1 (initialize) and 2 (tools/list)
             },
         );
-        s.server_registry.insert(name, url.clone());
+        s.server_registry.insert(registry_key(&window_label, &name), url.clone());
     }
 
     eprintln!("[mcp] ready (total {}ms)", t0.elapsed().as_millis());
@@ -155,6 +169,7 @@ pub(crate) async fn mcp_connect(
 #[tauri::command]
 pub(crate) async fn mcp_read_resource(
     state: State<'_, Mutex<McpState>>,
+    window_label: String,
     url: String,
     uri: String,
 ) -> Result<String, String> {
@@ -164,9 +179,10 @@ pub(crate) async fn mcp_read_resource(
     // Extract what we need from state (release lock before async work)
     let (http, session_id, id) = {
         let mut s = state.lock().map_err(|e| e.to_string())?;
+        let key = session_key(&window_label, &url);
         let info = s
             .sessions
-            .get_mut(&url)
+            .get_mut(&key)
             .ok_or("MCP session not found. Call mcp_connect first.")?;
         let id = info.next_id;
         info.next_id += 1;

@@ -77,6 +77,13 @@ impl ACPManager {
                         let _ = win.emit("acp-error", e);
                     }
                 }
+
+                // Clean up the agent entry so this window can start a new agent
+                let state = app.state::<std::sync::Mutex<ACPManager>>();
+                let removed = state.lock().ok().and_then(|mut m| m.agents.remove(&window_label));
+                if removed.is_some() {
+                    eprintln!("[acp] cleaned up agent entry for window: {}", window_label);
+                }
             });
         });
 
@@ -136,7 +143,7 @@ async fn run_acp_session(
     let stdout = child.stdout.take()
         .ok_or("Failed to get agent stdout")?;
 
-    let client = Rc::new(RalClient::new(app.clone(), window_label.clone()));
+    let client = Rc::new(RalClient::new(app.clone(), window_label.clone(), std::path::PathBuf::from(&cwd)));
 
     // Create the ACP connection (wrapped in Rc so prompt futures can share it)
     let (conn, handle_io) = acp::ClientSideConnection::new(

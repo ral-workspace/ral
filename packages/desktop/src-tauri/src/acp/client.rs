@@ -1,6 +1,7 @@
 use agent_client_protocol as acp;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::oneshot;
 
@@ -14,15 +15,73 @@ struct PendingPermission {
 pub(crate) struct RalClient {
     app: AppHandle,
     window_label: String,
+    workspace_root: PathBuf,
     pending_permissions: RefCell<HashMap<String, PendingPermission>>,
     terminals: RefCell<ACPTerminalManager>,
 }
 
+/// Validate that a path is within the workspace boundary.
+/// Rejects `..` traversal and symlinks that escape the workspace.
+fn validate_workspace_path(path: &Path, workspace_root: &Path) -> Result<PathBuf, String> {
+    // Reject explicit traversal components
+    for component in path.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err(format!("Path traversal (..) is not allowed: {}", path.display()));
+        }
+    }
+
+    // Resolve to absolute path
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        workspace_root.join(path)
+    };
+
+    // Canonicalize to resolve symlinks, then check prefix.
+    // For new files/dirs, walk up to find the nearest existing ancestor,
+    // canonicalize that, then append the remaining components.
+    let canonical = if absolute.exists() {
+        absolute.canonicalize()
+            .map_err(|e| format!("Failed to resolve path {}: {}", path.display(), e))?
+    } else {
+        let mut existing = absolute.as_path();
+        let mut suffix_parts: Vec<&std::ffi::OsStr> = Vec::new();
+        while !existing.exists() {
+            suffix_parts.push(
+                existing.file_name()
+                    .ok_or_else(|| format!("Invalid path: {}", path.display()))?,
+            );
+            existing = existing.parent()
+                .ok_or_else(|| format!("Invalid path: {}", path.display()))?;
+        }
+        let mut canonical = existing.canonicalize()
+            .map_err(|e| format!("Failed to resolve path {}: {}", path.display(), e))?;
+        for part in suffix_parts.into_iter().rev() {
+            canonical.push(part);
+        }
+        canonical
+    };
+
+    let canonical_root = workspace_root.canonicalize()
+        .map_err(|e| format!("Failed to resolve workspace root: {}", e))?;
+
+    if !canonical.starts_with(&canonical_root) {
+        return Err(format!(
+            "Access denied: {} is outside workspace {}",
+            path.display(),
+            workspace_root.display()
+        ));
+    }
+
+    Ok(canonical)
+}
+
 impl RalClient {
-    pub fn new(app: AppHandle, window_label: String) -> Self {
+    pub fn new(app: AppHandle, window_label: String, workspace_root: PathBuf) -> Self {
         Self {
             app,
             window_label,
+            workspace_root,
             pending_permissions: RefCell::new(HashMap::new()),
             terminals: RefCell::new(ACPTerminalManager::new()),
         }
@@ -95,7 +154,9 @@ impl acp::Client for RalClient {
         args: acp::ReadTextFileRequest,
     ) -> acp::Result<acp::ReadTextFileResponse> {
         let path = &args.path;
-        let content = std::fs::read_to_string(path)
+        let validated = validate_workspace_path(path, &self.workspace_root)
+            .map_err(|e| acp::Error::new(-32603, e))?;
+        let content = std::fs::read_to_string(&validated)
             .map_err(|e| acp::Error::new(-32603, format!("Failed to read {}: {}", path.display(), e)))?;
 
         // Handle line/limit parameters
@@ -132,13 +193,15 @@ impl acp::Client for RalClient {
         args: acp::WriteTextFileRequest,
     ) -> acp::Result<acp::WriteTextFileResponse> {
         let path = &args.path;
+        let validated = validate_workspace_path(path, &self.workspace_root)
+            .map_err(|e| acp::Error::new(-32603, e))?;
 
         // Create parent directories if needed
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = validated.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
 
-        std::fs::write(path, &args.content)
+        std::fs::write(&validated, &args.content)
             .map_err(|e| acp::Error::new(-32603, format!("Failed to write {}: {}", path.display(), e)))?;
 
         // Notify frontend about file change

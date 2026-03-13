@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { load } from "@tauri-apps/plugin-store";
+
+const windowLabel = getCurrentWindow().label;
 
 interface McpToolInfo {
   name: string;
@@ -87,7 +90,7 @@ export const useMcpClientStore = create<McpClientState & McpClientActions>((set,
 
     try {
       // Rust handles: initialize → initialized → tools/list
-      const tools = await invoke<McpToolInfo[]>("mcp_connect", { name: serverName, url });
+      const tools = await invoke<McpToolInfo[]>("mcp_connect", { windowLabel, name: serverName, url });
       const t1 = performance.now();
       console.log(`[mcp-client] ${serverName}: connected, ${tools.length} tools (${(t1 - t0).toFixed(0)}ms)`);
 
@@ -152,7 +155,7 @@ export const useMcpClientStore = create<McpClientState & McpClientActions>((set,
     const t0 = performance.now();
 
     // Rust handles the JSON-RPC call
-    const html = await invoke<string>("mcp_read_resource", { url: serverUrl, uri: resourceUri });
+    const html = await invoke<string>("mcp_read_resource", { windowLabel, url: serverUrl, uri: resourceUri });
 
     const endsWithHtml = html.trimEnd().endsWith("</html>");
     console.log(`[mcp-client] resource read: ${html.length} chars (${(performance.now() - t0).toFixed(0)}ms), ends with </html>: ${endsWithHtml}, last 50: "${html.slice(-50)}"`);
